@@ -124,10 +124,12 @@ const saveHistoricalData = async (accessToken, cards, paramCardType) => {
             productId: card.productId,
             history: [ ]
         }
-        history.cards[productKey].history.push({
-            date: startOfDay,
-            marketPrice: cardPriceInfo.marketPrice
-        })
+        if (!_.some(history.cards[productKey].history, (h) => h.date === startOfDay)) {
+            history.cards[productKey].history.push({
+                date: startOfDay,
+                marketPrice: cardPriceInfo.marketPrice
+            })
+        }
     }
     jsonfile.writeFileSync('./history.json', history)
 }
