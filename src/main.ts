@@ -1,7 +1,17 @@
 import jsonfile from 'jsonfile'
+import _ from 'lodash'
 import fs from 'fs'
 import util from './util'
+import { searchQuery } from './api'
 import { Rarity, Type } from './enums'
+
+const watchIds = [
+    222990, // Venusaur V - Champion's path
+    219347, // Salamence VMAX - Darkness Ablaze
+    234179, // Corviknight VMAX - Battle Styles
+    234207, // Tapu Koko VMAX - Battle Styles
+    117519 // Zygarde EX - Fates Collide
+]
 
 const keys = jsonfile.readFileSync('data/keys.json')
 const accessToken = keys.accessToken
@@ -18,14 +28,17 @@ const utilObj = new util({
 })
 
 const fn = async () => {
-    const topCards = await utilObj.getBestCardAppreciation(6, 48, paramRarity, paramCardType, 100)
-    await utilObj.saveHistoricalData(topCards, paramCardType)
-    //const latestSetCards = await api.searchQuery('Ultra Rare', 'SWSH05: Battle Styles', keys.accessToken)
+    const topCardIds = _.map(await utilObj.getBestCardAppreciation(6, 48, paramRarity, paramCardType, 100), (c) => c.productId)
+    const latestSetIds = await searchQuery('Ultra Rare', 'SWSH05: Battle Styles', keys.accessToken)
+    const cardIds = topCardIds
+    _.each(latestSetIds, (id) => cardIds.push(id))
+    _.each(watchIds, (id) => cardIds.push(id))
+    await utilObj.saveHistoricalData(cardIds, paramCardType)
+    console.log('\nTop Cards:')
+    util.displayChanges(topCardIds)
+    console.log('\n\nLatest Set Ultra Rares: ')
+    util.displayChanges(latestSetIds)
+    console.log('\n\nWatch List: ')
+    util.displayChanges(watchIds)
 }
 fn()
-
-// const f = async () => {
-//     const ids = await api.searchQuery(paramRarity, 'SWSH05: Battle Styles', accessToken)
-//     console.log(await api.getPriceInfo(ids, accessToken))
-// }
-// f()

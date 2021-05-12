@@ -1,6 +1,6 @@
 import _ from 'lodash'
 import fs from 'fs'
-import { subMinutes, startOfDay as startOfDayFn } from 'date-fns'
+import { subMinutes, subDays, startOfDay as startOfDayFn } from 'date-fns'
 import jsonfile from 'jsonfile'
 import { getPriceInfo, getProductInfo, searchQuery } from './api'
 import { Rarity, Type, Set, ProductInfo, PriceInfo, MarketInfo } from './enums'
@@ -107,31 +107,62 @@ export default class Util {
     }
 
     public async saveHistoricalData (
-        cards: MarketInfo[],
+        cardIds: number[],
         cardType: string
     ): Promise<void> {
         const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: { } }
-        const cardIds = _.map(cards, (c) => c.productId)
         const priceInfo = _.filter(await getPriceInfo(cardIds, this.accessToken), (c) => c.subTypeName === cardType)
+        const productInfo = await getProductInfo(cardIds, this.accessToken)
         let startOfDay = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset()).toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
-        for (let i = 0; i < cards.length;i++) {
-            const card = cards[i]
-            const cardPriceInfo = _.find(priceInfo, (p) => p.productId === card.productId)
-            if (!cardPriceInfo) continue
-            const productKey = card.productId.toString() + '-' + cardType
+        for (let i = 0; i < cardIds.length;i++) {
+            const id = cardIds[i]
+            const cardPriceInfo = _.find(priceInfo, (p) => p.productId === id)
+            const cardProductInfo = _.find(productInfo, (p) => p.productId === id)
+            if (!cardPriceInfo || !cardProductInfo) continue
+            const productKey = id.toString()
             if (!history.cards[productKey]) history.cards[productKey] = {
-                name: card.name,
-                set: card.set,
-                productId: card.productId,
+                name: cardProductInfo.name,
+                productId: id,
                 history: [ ]
             }
             if (_.some(history.cards[productKey].history, (h) => h.date === startOfDay)) continue
             history.cards[productKey].history.push({
                 date: startOfDay,
-                marketPrice: cardPriceInfo.marketPrice
+                marketPrice: cardPriceInfo.marketPrice,
+                cardType
             })
         }
         jsonfile.writeFileSync('data/history.json', history)
+    }
+
+    public static displayChanges(cardIds: number[]) {
+        const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: { } }
+        const startOfDayObj = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset())
+        let startOfDay = startOfDayObj.toISOString()
+        startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
+        let startOfYesterday = subDays(startOfDayObj, 1).toISOString()
+        startOfYesterday = startOfYesterday.slice(0, startOfYesterday.indexOf('T'))
+        let changes = [ ]
+        const notFound = [ ]
+        for (let i = 0; i < cardIds.length;i++) {
+            const id = cardIds[i]
+            const historicalData = history.cards[id.toString()]
+            if (!historicalData) {
+                notFound.push(id)
+                continue
+            }
+            const changeObj: any = { id, name: historicalData.name }
+            const todaysPrice = _.find(historicalData.history, (h) => h.date === startOfDay)
+            if (todaysPrice) changeObj.todaysPrice = todaysPrice
+            const yesterdaysPrice = _.find(historicalData.history, (h) => h.date === startOfYesterday)
+            if (!yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice
+            if (todaysPrice && yesterdaysPrice) {
+                changeObj.dailyChange = todaysPrice.marketPrice - yesterdaysPrice.marketPrice
+            }
+            changes.push(changeObj)
+        }
+        changes = _.orderBy(changes, (c) => c.dailyChange)
+        _.each(changes, (c) => console.log(`${c.dailyChange ? `Daily: $${_.round(c.dailyChange, 2)} ($${c.yesterdaysPrice.marketPrice} -> $${c.todaysPrice.marketPrice})` : `$${c.todaysPrice.marketPrice}`} - ${c.name} (${c.id})`))
     }
 }
