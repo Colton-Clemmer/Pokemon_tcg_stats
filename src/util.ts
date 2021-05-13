@@ -136,7 +136,7 @@ export default class Util {
         jsonfile.writeFileSync('data/history.json', history)
     }
 
-    public static displayChanges(cardIds: number[]) {
+    public static displayChanges(cardIds: number[], prices: number[] = []) {
         const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: { } }
         const startOfDayObj = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset())
         let startOfDay = startOfDayObj.toISOString()
@@ -153,16 +153,28 @@ export default class Util {
                 continue
             }
             const changeObj: any = { id, name: historicalData.name }
+            if (i < prices.length) {
+                changeObj.buyPrice = prices[i]
+            }
             const todaysPrice = _.find(historicalData.history, (h) => h.date === startOfDay)
             if (todaysPrice) changeObj.todaysPrice = todaysPrice
             const yesterdaysPrice = _.find(historicalData.history, (h) => h.date === startOfYesterday)
-            if (!yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice
+            if (yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice
             if (todaysPrice && yesterdaysPrice) {
                 changeObj.dailyChange = todaysPrice.marketPrice - yesterdaysPrice.marketPrice
             }
             changes.push(changeObj)
         }
         changes = _.orderBy(changes, (c) => c.dailyChange)
-        _.each(changes, (c) => console.log(`${c.dailyChange ? `Daily: $${_.round(c.dailyChange, 2)} ($${c.yesterdaysPrice.marketPrice} -> $${c.todaysPrice.marketPrice})` : `$${c.todaysPrice.marketPrice}`} - ${c.name} (${c.id})`))
+        _.each(changes, (c) => {
+            console.log(`\nCard: ${c.name} (${c.id}) $${c.todaysPrice.marketPrice}`)
+            if (c.buyPrice) {
+                const profit = _.round(c.todaysPrice.marketPrice - c.buyPrice, 2)
+                console.log(`Profit: $${c.buyPrice} -> $${c.todaysPrice.marketPrice} ($${profit}/${Math.floor((profit / c.buyPrice) * 100)}%)`)
+            }
+            if (c.dailyChange) {
+                console.log(`Daily: $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice.marketPrice) * 100)}% ($${c.yesterdaysPrice.marketPrice} -> $${c.todaysPrice.marketPrice})`)
+            }
+        })
     }
 }
