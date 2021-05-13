@@ -4,7 +4,6 @@ import { subMinutes, subDays, startOfDay as startOfDayFn } from 'date-fns'
 import jsonfile from 'jsonfile'
 import { getPriceInfo, getProductInfo, searchQuery } from './api'
 import { Rarity, Type, Set, ProductInfo, PriceInfo, MarketInfo } from './enums'
-import { StringLiteral } from 'typescript'
 
 const today = new Date()
 const getMonthsFromToday = (d: string) => _.round(Math.abs((new Date(d)).getTime() - today.getTime()) / 1000 / 60 / 60 / 24 / 30, 0)
@@ -39,8 +38,8 @@ export default class Util {
             search = await searchQuery(rarity, set, this.accessToken)
             productInfo = await getProductInfo(search, this.accessToken)
             priceInfo = await getPriceInfo(search, this.accessToken)
-            if (!this.cache[set]) this.cache[set] = { }
-            if (!this.cache[set][rarity]) this.cache[set][rarity] = { }
+            if (!this.cache[set]) this.cache[set] = {}
+            if (!this.cache[set][rarity]) this.cache[set][rarity] = {}
             this.cache[set][rarity][cardType] = { search, productInfo, priceInfo }
         } else {
             const cacheData = this.cache[set][rarity][cardType]
@@ -48,8 +47,8 @@ export default class Util {
             productInfo = cacheData.productInfo
             priceInfo = cacheData.priceInfo
         }
-        let marketInfo: MarketInfo[] = [ ]
-        for (let i = 0; i < search.length;i++) {
+        let marketInfo: MarketInfo[] = []
+        for (let i = 0; i < search.length; i++) {
             const result = search[i]
             const price = _.find(priceInfo, (pi) => pi.productId === result && pi.subTypeName === cardType)
             if (price && setData) {
@@ -66,8 +65,7 @@ export default class Util {
         }
 
         marketInfo = _.orderBy(marketInfo, (p) => p.marketPrice)
-        if (this.verbose)
-        {
+        if (this.verbose) {
             const averagePrice = _.round(_.meanBy(marketInfo, (p) => p.marketPrice), 2)
             console.log('\nSet: ' + set)
             console.log(`Average Price: $${averagePrice}`)
@@ -85,14 +83,14 @@ export default class Util {
         limit: number = 0
     ): Promise<MarketInfo[]> {
         let setData: MarketInfo[] = []
-        for (let i = 0; i < this.sets.length;i++) {
+        for (let i = 0; i < this.sets.length; i++) {
             const set = this.sets[i]
             const monthsFromToday = getMonthsFromToday(set.date)
             if (monthsFromToday > maxMonths || monthsFromToday < minMonths) {
                 continue
             }
             const marketInfo = await this.aggregatePrices(set.name, rarity, cardType)
-            for (let j = 0; j < marketInfo.length;j++) {
+            for (let j = 0; j < marketInfo.length; j++) {
                 setData.push(marketInfo[j])
             }
         }
@@ -106,16 +104,16 @@ export default class Util {
         return setData
     }
 
-    public async saveHistoricalData (
+    public async saveHistoricalData(
         cardIds: number[],
         cardType: string
     ): Promise<void> {
-        const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: { } }
+        const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }
         const priceInfo = _.filter(await getPriceInfo(cardIds, this.accessToken), (c) => c.subTypeName === cardType)
         const productInfo = await getProductInfo(cardIds, this.accessToken)
         let startOfDay = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset()).toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
-        for (let i = 0; i < cardIds.length;i++) {
+        for (let i = 0; i < cardIds.length; i++) {
             const id = cardIds[i]
             const cardPriceInfo = _.find(priceInfo, (p) => p.productId === id)
             const cardProductInfo = _.find(productInfo, (p) => p.productId === id)
@@ -124,7 +122,7 @@ export default class Util {
             if (!history.cards[productKey]) history.cards[productKey] = {
                 name: cardProductInfo.name,
                 productId: id,
-                history: [ ]
+                history: []
             }
             if (_.some(history.cards[productKey].history, (h) => h.date === startOfDay)) continue
             history.cards[productKey].history.push({
@@ -136,16 +134,21 @@ export default class Util {
         jsonfile.writeFileSync('data/history.json', history)
     }
 
+    public static getDateString(date: Date) {
+        const d = subMinutes(startOfDayFn(date), (new Date()).getTimezoneOffset()).toISOString()
+        return d.slice(0, d.indexOf('T'))
+    }
+
     public static displayChanges(cardIds: number[], prices: number[] = []) {
-        const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: { } }
+        const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }
         const startOfDayObj = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset())
         let startOfDay = startOfDayObj.toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
         let startOfYesterday = subDays(startOfDayObj, 1).toISOString()
         startOfYesterday = startOfYesterday.slice(0, startOfYesterday.indexOf('T'))
-        let changes = [ ]
-        const notFound = [ ]
-        for (let i = 0; i < cardIds.length;i++) {
+        let changes = []
+        const notFound = []
+        for (let i = 0; i < cardIds.length; i++) {
             const id = cardIds[i]
             const historicalData = history.cards[id.toString()]
             if (!historicalData) {
@@ -157,23 +160,37 @@ export default class Util {
                 changeObj.buyPrice = prices[i]
             }
             const todaysPrice = _.find(historicalData.history, (h) => h.date === startOfDay)
-            if (todaysPrice) changeObj.todaysPrice = todaysPrice
+            if (todaysPrice) changeObj.todaysPrice = todaysPrice.marketPrice
             const yesterdaysPrice = _.find(historicalData.history, (h) => h.date === startOfYesterday)
-            if (yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice
+            if (yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice.marketPrice
             if (todaysPrice && yesterdaysPrice) {
-                changeObj.dailyChange = todaysPrice.marketPrice - yesterdaysPrice.marketPrice
+                changeObj.dailyChange = _.round(todaysPrice.marketPrice - yesterdaysPrice.marketPrice, 2)
+            }
+            let lastWeekPrice
+            for (let j = 7; j > 0;j--) {
+                const lastWeekObj = this.getDateString(subDays(new Date(), j))
+                lastWeekPrice = _.find(historicalData.history, (h) => h.date === lastWeekObj)
+                if (lastWeekPrice) {
+                    changeObj.lastWeekPrice = lastWeekPrice
+                    changeObj.weeklyChange = _.round(todaysPrice.marketPrice - lastWeekPrice.marketPrice, 2)
+                    break
+                }
             }
             changes.push(changeObj)
         }
-        changes = _.orderBy(changes, (c) => c.dailyChange)
+        changes = _.orderBy(changes, (c) => c.weeklyChange / c.lastWeekPrice.marketPrice)
         _.each(changes, (c) => {
-            console.log(`\nCard: ${c.name} (${c.id}) $${c.todaysPrice.marketPrice}`)
+            console.log(`\nCard: ${c.name} (${c.id}) $${c.todaysPrice}`)
             if (c.buyPrice) {
-                const profit = _.round(c.todaysPrice.marketPrice - c.buyPrice, 2)
-                console.log(`Profit: $${c.buyPrice} -> $${c.todaysPrice.marketPrice} ($${profit}/${Math.floor((profit / c.buyPrice) * 100)}%)`)
+                const profit = _.round(c.todaysPrice - c.buyPrice, 2)
+                console.log(`Profit: $${c.buyPrice} -> $${c.todaysPrice} ($${profit}/${Math.floor((profit / c.buyPrice) * 100)}%)`)
             }
             if (c.dailyChange) {
-                console.log(`Daily: $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice.marketPrice) * 100)}% ($${c.yesterdaysPrice.marketPrice} -> $${c.todaysPrice.marketPrice})`)
+                const yesterDayString = this.getDateString(subDays(new Date(), 1))
+                console.log(`Daily:  ${yesterDayString} $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice) * 100)}% ($${c.yesterdaysPrice} -> $${c.todaysPrice})`)
+            }
+            if (c.weeklyChange) {
+                console.log(`Weekly: ${c.lastWeekPrice.date} $${c.weeklyChange}/${Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100)}% ($${c.lastWeekPrice.marketPrice} -> $${c.todaysPrice})`)
             }
         })
     }
