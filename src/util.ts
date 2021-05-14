@@ -21,6 +21,18 @@ type HistoryItem = {
     cardType: string
 }
 
+type Change = {
+    id: number
+    name: string
+    set: string
+    buyPrice?: number // Price invested in
+    todaysPrice?: number // Current value
+    yesterdaysPrice?: number
+    lastWeekPrice?: HistoryItem
+    dailyChange?: number
+    weeklyChange?: number
+}
+
 export default class Util {
     public sets: Set[]
     public cache: any
@@ -34,7 +46,8 @@ export default class Util {
     public async aggregatePrices(
         set: string,
         rarity: Rarity,
-        cardType: Type
+        cardType: Type,
+        minPrice: number
     ): Promise<MarketInfo[]> {
         let search: number[]
         let productInfo: ProductInfo[]
@@ -60,17 +73,20 @@ export default class Util {
         let marketInfo: MarketInfo[] = []
         for (let i = 0; i < search.length; i++) {
             const result = search[i]
+            const product = _.find(productInfo, (pi) => pi.productId === result)
             const price = _.find(priceInfo, (pi) => pi.productId === result && pi.subTypeName === cardType)
-            if (price && setData) {
+            if (price && product && setData) {
                 const monthsFromToday = getMonthsFromToday(setData.date)
-                marketInfo.push({
-                    marketPrice: price.marketPrice,
-                    name: price.subTypeName,
-                    set,
-                    productId: price.productId,
-                    monthsFromToday,
-                    increasePerMonth: price.marketPrice / monthsFromToday
-                })
+                if (minPrice > 0 && price.marketPrice > minPrice) {
+                    marketInfo.push({
+                        marketPrice: price.marketPrice,
+                        name: product.name,
+                        set,
+                        productId: price.productId,
+                        monthsFromToday,
+                        increasePerMonth: price.marketPrice / monthsFromToday
+                    })
+                }
             }
         }
 
@@ -90,7 +106,8 @@ export default class Util {
         maxMonths: number,
         rarity: Rarity,
         cardType: Type,
-        limit: number = 0
+        limit: number = 0,
+        minPrice: number = 0
     ): Promise<MarketInfo[]> {
         let setData: MarketInfo[] = []
         for (let i = 0; i < this.sets.length; i++) {
@@ -99,7 +116,7 @@ export default class Util {
             if (monthsFromToday > maxMonths || monthsFromToday < minMonths) {
                 continue
             }
-            const marketInfo = await this.aggregatePrices(set.name, rarity, cardType)
+            const marketInfo = await this.aggregatePrices(set.name, rarity, cardType, minPrice)
             for (let j = 0; j < marketInfo.length; j++) {
                 setData.push(marketInfo[j])
             }
@@ -161,14 +178,14 @@ export default class Util {
         return d.slice(0, d.indexOf('T'))
     }
 
-    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0) {
+    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0) {
         const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }
         const startOfDayObj = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset())
         let startOfDay = startOfDayObj.toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
         let startOfYesterday = subDays(startOfDayObj, 1).toISOString()
         startOfYesterday = startOfYesterday.slice(0, startOfYesterday.indexOf('T'))
-        let changes = []
+        let changes: Change[] = []
         const notFound = []
         for (let i = 0; i < cardIds.length; i++) {
             const id = cardIds[i]
@@ -182,18 +199,7 @@ export default class Util {
                 notFound.push(id)
                 continue
             }
-            const changeObj: {
-                id: number
-                name: string
-                set: string
-                buyPrice?: number // Price invested in
-                todaysPrice?: number // Current value
-                yesterdaysPrice?: number
-                lastWeekPrice?: HistoryItem
-                dailyChange?: number
-                weeklyChange?: number
-
-            } = { id, name: historicalData.name, set: historicalData.set }
+            const changeObj: Change = { id, name: historicalData.name, set: historicalData.set }
             if (i < prices.length) {
                 changeObj.buyPrice = prices[i]
             }
@@ -221,6 +227,9 @@ export default class Util {
 
             }
             changes.push(changeObj)
+        }
+        if (minPrice > 0) {
+            changes = _.filter(changes, (c) => c.todaysPrice && c.todaysPrice > minPrice) as Change[]
         }
         changes = _.reverse(_.orderBy(changes, (c) => c.weeklyChange && c.lastWeekPrice ? c.weeklyChange / c.lastWeekPrice.marketPrice : 0))
         if (limit) {
