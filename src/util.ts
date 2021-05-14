@@ -15,6 +15,12 @@ type UtilParams = {
     verbose: boolean
 }
 
+type HistoryItem = {
+    date: string
+    marketPrice: number
+    cardType: string
+}
+
 export default class Util {
     public sets: Set[]
     public cache: any
@@ -41,11 +47,15 @@ export default class Util {
             if (!this.cache[set]) this.cache[set] = {}
             if (!this.cache[set][rarity]) this.cache[set][rarity] = {}
             this.cache[set][rarity][cardType] = { search, productInfo, priceInfo }
+            if (!this.cache.products) this.cache.products = { }
+            _.each(productInfo, (product) => this.cache.products[product.productId] = product)
         } else {
             const cacheData = this.cache[set][rarity][cardType]
             search = cacheData.search
             productInfo = cacheData.productInfo
             priceInfo = cacheData.priceInfo
+            if (!this.cache.products) this.cache.products = { }
+            _.each(productInfo, (product) => this.cache.products[product.productId] = product)
         }
         let marketInfo: MarketInfo[] = []
         for (let i = 0; i < search.length; i++) {
@@ -105,24 +115,36 @@ export default class Util {
     }
 
     public async saveHistoricalData(
-        cardIds: number[],
+        cards: { id: number, set: string }[],
         cardType: string
     ): Promise<void> {
         const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }
-        const priceInfo = _.filter(await getPriceInfo(cardIds, this.accessToken), (c) => c.subTypeName === cardType)
-        const productInfo = await getProductInfo(cardIds, this.accessToken)
+        const cardIds = _.map(cards, 'id')
+        const priceInfo: PriceInfo[] = _.filter(await getPriceInfo(cardIds, this.accessToken), (c) => c.subTypeName === cardType)
+        const productInfo: ProductInfo[] = _.reject(_.map(cardIds, (id) => this.cache.products[id]), (card) => !card)
+        const lostIds = _.filter(cardIds, (id) => !_.find(productInfo, (product) => product.productId === id))
+        const lostProductInfo = await getProductInfo(lostIds, this.accessToken)
+        _.each(lostProductInfo, (product) => this.cache.products[product.productId] ? this.cache.products[product.productId] = product : false)
+        if (lostProductInfo.length > 0) {
+            jsonfile.writeFileSync('data/cache.json', this.cache)
+        }
+        _.each(lostProductInfo, (info) => productInfo.push(info))
         let startOfDay = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset()).toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
         for (let i = 0; i < cardIds.length; i++) {
-            const id = cardIds[i]
-            const cardPriceInfo = _.find(priceInfo, (p) => p.productId === id)
-            const cardProductInfo = _.find(productInfo, (p) => p.productId === id)
+            const card = cards[i]
+            const cardPriceInfo = _.find(priceInfo, (p) => p.productId === card.id)
+            const cardProductInfo = _.find(productInfo, (p) => p.productId === card.id)
             if (!cardPriceInfo || !cardProductInfo) continue
-            const productKey = id.toString()
+            const productKey = card.id.toString()
             if (!history.cards[productKey]) history.cards[productKey] = {
                 name: cardProductInfo.name,
-                productId: id,
+                set: card.set,
+                productId: card.id,
                 history: []
+            }
+            if (!history.cards[productKey].set) {
+                history.cards[productKey].set = card.set
             }
             if (_.some(history.cards[productKey].history, (h) => h.date === startOfDay)) continue
             history.cards[productKey].history.push({
@@ -139,7 +161,7 @@ export default class Util {
         return d.slice(0, d.indexOf('T'))
     }
 
-    public static displayChanges(cardIds: number[], prices: number[] = []) {
+    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0) {
         const history = fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }
         const startOfDayObj = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset())
         let startOfDay = startOfDayObj.toISOString()
@@ -150,16 +172,33 @@ export default class Util {
         const notFound = []
         for (let i = 0; i < cardIds.length; i++) {
             const id = cardIds[i]
-            const historicalData = history.cards[id.toString()]
+            const historicalData: {
+                name: string
+                productId: number
+                set: string
+                history: HistoryItem[]
+            } = history.cards[id.toString()]
             if (!historicalData) {
                 notFound.push(id)
                 continue
             }
-            const changeObj: any = { id, name: historicalData.name }
+            const changeObj: {
+                id: number
+                name: string
+                set: string
+                buyPrice?: number // Price invested in
+                todaysPrice?: number // Current value
+                yesterdaysPrice?: number
+                lastWeekPrice?: HistoryItem
+                dailyChange?: number
+                weeklyChange?: number
+
+            } = { id, name: historicalData.name, set: historicalData.set }
             if (i < prices.length) {
                 changeObj.buyPrice = prices[i]
             }
             const todaysPrice = _.find(historicalData.history, (h) => h.date === startOfDay)
+            if (!todaysPrice) continue
             if (todaysPrice) changeObj.todaysPrice = todaysPrice.marketPrice
             const yesterdaysPrice = _.find(historicalData.history, (h) => h.date === startOfYesterday)
             if (yesterdaysPrice) changeObj.yesterdaysPrice = yesterdaysPrice.marketPrice
@@ -176,20 +215,29 @@ export default class Util {
                     break
                 }
             }
+            if (!lastWeekPrice && changeObj.todaysPrice) {
+                changeObj.lastWeekPrice = todaysPrice
+                changeObj.weeklyChange = 0
+
+            }
             changes.push(changeObj)
         }
-        changes = _.orderBy(changes, (c) => c.weeklyChange / c.lastWeekPrice.marketPrice)
+        changes = _.reverse(_.orderBy(changes, (c) => c.weeklyChange && c.lastWeekPrice ? c.weeklyChange / c.lastWeekPrice.marketPrice : 0))
+        if (limit) {
+            changes = _.slice(changes, 0, limit)
+        }
+        changes = _.uniqBy(changes, (c) => c.id)
         _.each(changes, (c) => {
-            console.log(`\nCard: ${c.name} (${c.id}) $${c.todaysPrice}`)
-            if (c.buyPrice) {
+            console.log(`\nCard: ${c.name} (${c.id}) $${c.todaysPrice} - ${c.set}`)
+            if (c.buyPrice && c.todaysPrice) {
                 const profit = _.round(c.todaysPrice - c.buyPrice, 2)
                 console.log(`Profit: $${c.buyPrice} -> $${c.todaysPrice} ($${profit}/${Math.floor((profit / c.buyPrice) * 100)}%)`)
             }
-            if (c.dailyChange) {
+            if (c.dailyChange && c.yesterdaysPrice) {
                 const yesterDayString = this.getDateString(subDays(new Date(), 1))
                 console.log(`Daily:  ${yesterDayString} $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice) * 100)}% ($${c.yesterdaysPrice} -> $${c.todaysPrice})`)
             }
-            if (c.weeklyChange) {
+            if (c.weeklyChange && c.lastWeekPrice) {
                 console.log(`Weekly: ${c.lastWeekPrice.date} $${c.weeklyChange}/${Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100)}% ($${c.lastWeekPrice.marketPrice} -> $${c.todaysPrice})`)
             }
         })

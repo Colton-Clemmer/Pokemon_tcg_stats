@@ -9,6 +9,7 @@ export const searchQuery = async (
     set: string,
     accessToken: string
 ): Promise<number[]> => {
+    console.log(`Searching ${set} for ${rarity}`)
     const limit = 200
     await timer(200)
     const url = 'https://api.tcgplayer.com/catalog/categories/3/search'
@@ -35,7 +36,11 @@ export const getProductInfo = async (
     cardIds: number[],
     accessToken: string
 ): Promise<ProductInfo[]> => {
+    let count = 1
     const getProducts = async (ids: number[]): Promise<ProductInfo[]> => {
+        if (ids.length === 0) return [ ]
+        console.log(`Getting Product info for ${ids.length * count} of ${cardIds.length} items...`)
+        count++
         const idsString =_.reduce(_.map(ids, (id) => id.toString()), (s, id ) => !s ? id.toString() : `${s}, ${id}`)
         await timer(200)
         const url = 'https://api.tcgplayer.com/catalog/products/' + idsString
@@ -65,7 +70,11 @@ export const getPriceInfo = async (
     cardIds: number[],
     accessToken: string
 ): Promise<PriceInfo[]> => {
+    let count = 1
     const getPrices = async (ids: number[]): Promise<PriceInfo[]> => {
+        if (ids.length === 0) return []
+        console.log(`Getting Price info for ${ids.length * count} of ${cardIds.length} items...`)
+        count++
         const idsString =_.reduce(_.map(ids, (id) => id.toString()), (s, id ) => !s ? id.toString() : `${s}, ${id}`)
         await timer(200)
         const url = 'https://api.tcgplayer.com/pricing/product/' + idsString
