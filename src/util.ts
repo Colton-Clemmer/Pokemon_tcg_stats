@@ -77,7 +77,7 @@ export default class Util {
             const price = _.find(priceInfo, (pi) => pi.productId === result && pi.subTypeName === cardType)
             if (price && product && setData) {
                 const monthsFromToday = getMonthsFromToday(setData.date)
-                if (minPrice > 0 && price.marketPrice > minPrice) {
+                if ((minPrice > 0 && price.marketPrice > minPrice) || minPrice === 0) {
                     marketInfo.push({
                         marketPrice: price.marketPrice,
                         name: product.name,
@@ -146,7 +146,7 @@ export default class Util {
             jsonfile.writeFileSync('data/cache.json', this.cache)
         }
         _.each(lostProductInfo, (info) => productInfo.push(info))
-        let startOfDay = subMinutes(startOfDayFn(new Date()), (new Date()).getTimezoneOffset()).toISOString()
+        let startOfDay = startOfDayFn(new Date()).toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
         for (let i = 0; i < cardIds.length; i++) {
             const card = cards[i]
@@ -174,7 +174,7 @@ export default class Util {
     }
 
     public static getDateString(date: Date) {
-        const d = subMinutes(startOfDayFn(date), (new Date()).getTimezoneOffset()).toISOString()
+        const d = startOfDayFn(date).toISOString()
         return d.slice(0, d.indexOf('T'))
     }
 
@@ -243,8 +243,8 @@ export default class Util {
                 console.log(`Profit: $${c.buyPrice} -> $${c.todaysPrice} ($${profit}/${Math.floor((profit / c.buyPrice) * 100)}%)`)
             }
             if (c.dailyChange && c.yesterdaysPrice) {
-                const yesterDayString = this.getDateString(subDays(new Date(), 1))
-                console.log(`Daily:  ${yesterDayString} $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice) * 100)}% ($${c.yesterdaysPrice} -> $${c.todaysPrice})`)
+                const todayString = this.getDateString(new Date())
+                console.log(`Daily:  ${todayString} $${_.round(c.dailyChange, 2)}/${Math.floor((c.dailyChange / c.yesterdaysPrice) * 100)}% ($${c.yesterdaysPrice} -> $${c.todaysPrice})`)
             }
             if (c.weeklyChange && c.lastWeekPrice) {
                 console.log(`Weekly: ${c.lastWeekPrice.date} $${c.weeklyChange}/${Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100)}% ($${c.lastWeekPrice.marketPrice} -> $${c.todaysPrice})`)
