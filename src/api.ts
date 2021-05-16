@@ -1,11 +1,11 @@
 import fetch from 'node-fetch'
 import _ from 'lodash'
-import { ProductInfo, PriceInfo } from './enums'
+import { ProductInfo, PriceInfo, Rarity } from './enums'
 
 const timer = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 export const searchQuery = async (
-    rarity: string,
+    rarity: Rarity,
     set: string,
     accessToken: string
 ): Promise<number[]> => {
