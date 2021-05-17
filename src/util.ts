@@ -1,18 +1,14 @@
 import _ from 'lodash'
 import fs from 'fs'
-import { subMinutes, subDays, startOfDay as startOfDayFn } from 'date-fns'
+import { subDays, startOfDay as startOfDayFn } from 'date-fns'
 import jsonfile from 'jsonfile'
 import { getPriceInfo, getProductInfo, searchQuery } from './api'
 import { Rarity, Type, Set, ProductInfo, PriceInfo, MarketInfo } from './enums'
-import { getHeapStatistics } from 'v8'
-import { consoleTestResultHandler } from 'tslint/lib/test'
 
 const today = new Date()
-const getMonthsFromToday = (d: string) => _.round(Math.abs((new Date(d)).getTime() - today.getTime()) / 1000 / 60 / 60 / 24 / 30, 0)
 
 type UtilParams = {
     accessToken: string
-    cache: any
     sets: any
     verbose: boolean
 }
@@ -44,7 +40,6 @@ type Change = {
 
 export default class Util {
     public sets: Set[]
-    public cache: any
     public verbose: boolean
     public accessToken: string
 
@@ -52,40 +47,25 @@ export default class Util {
         _.merge(this, params)
     }
 
+    public static getMonthsFromToday = (d: string) => _.round(Math.abs((new Date(d)).getTime() - today.getTime()) / 1000 / 60 / 60 / 24 / 30, 0)
+
     public async aggregatePrices(
         set: string,
         rarity: Rarity,
         cardType: Type,
         minPrice: number
     ): Promise<MarketInfo[]> {
-        let search: number[]
-        let productInfo: ProductInfo[]
-        let priceInfo: PriceInfo[]
         const setData = _.find(this.sets, (s) => s.name === set)
-        if (!this.cache[set] || !this.cache[set][rarity] || !this.cache[set][rarity][cardType]) {
-            search = await searchQuery(rarity, set, this.accessToken)
-            productInfo = await getProductInfo(search, this.accessToken)
-            priceInfo = await getPriceInfo(search, this.accessToken)
-            if (!this.cache[set]) this.cache[set] = {}
-            if (!this.cache[set][rarity]) this.cache[set][rarity] = {}
-            this.cache[set][rarity][cardType] = { search, productInfo, priceInfo }
-            if (!this.cache.products) this.cache.products = { }
-            _.each(productInfo, (product) => this.cache.products[product.productId] = product)
-        } else {
-            const cacheData = this.cache[set][rarity][cardType]
-            search = cacheData.search
-            productInfo = cacheData.productInfo
-            priceInfo = cacheData.priceInfo
-            if (!this.cache.products) this.cache.products = { }
-            _.each(productInfo, (product) => this.cache.products[product.productId] = product)
-        }
+        const search = await searchQuery(rarity, set, this.accessToken)
+        const productInfo = await getProductInfo(search, this.accessToken)
+        const priceInfo = await getPriceInfo(search, cardType, this.accessToken)
         let marketInfo: MarketInfo[] = []
         for (let i = 0; i < search.length; i++) {
             const result = search[i]
             const product = _.find(productInfo, (pi) => pi.productId === result)
             const price = _.find(priceInfo, (pi) => pi.productId === result && pi.subTypeName === cardType)
             if (price && product && setData) {
-                const monthsFromToday = getMonthsFromToday(setData.date)
+                const monthsFromToday = Util.getMonthsFromToday(setData.date)
                 if ((minPrice > 0 && price.marketPrice > minPrice) || minPrice === 0) {
                     marketInfo.push({
                         marketPrice: price.marketPrice,
@@ -106,7 +86,6 @@ export default class Util {
             console.log(`Average Price: $${averagePrice}`)
             console.log(`Total Price: $${_.round(_.sumBy(marketInfo, (p) => p.marketPrice), 2)}`)
         }
-        jsonfile.writeFileSync('data/cache.json', this.cache)
         return marketInfo
     }
 
@@ -121,7 +100,7 @@ export default class Util {
         let setData: MarketInfo[] = []
         for (let i = 0; i < this.sets.length; i++) {
             const set = this.sets[i]
-            const monthsFromToday = getMonthsFromToday(set.date)
+            const monthsFromToday = Util.getMonthsFromToday(set.date)
             if (monthsFromToday > maxMonths || monthsFromToday < minMonths) {
                 continue
             }
@@ -142,19 +121,12 @@ export default class Util {
 
     public async saveHistoricalData(
         cards: { id: number, set: string }[],
-        cardType: string
+        cardType: Type
     ): Promise<void> {
         const history = Util.getHistory()
         const cardIds = _.map(cards, 'id')
-        const priceInfo: PriceInfo[] = _.filter(await getPriceInfo(cardIds, this.accessToken), (c) => c.subTypeName === cardType)
-        const productInfo: ProductInfo[] = _.reject(_.map(cardIds, (id) => this.cache.products[id]), (card) => !card)
-        const lostIds = _.filter(cardIds, (id) => !_.find(productInfo, (product) => product.productId === id))
-        const lostProductInfo = await getProductInfo(lostIds, this.accessToken)
-        _.each(lostProductInfo, (product) => this.cache.products[product.productId] ? this.cache.products[product.productId] = product : false)
-        if (lostProductInfo.length > 0) {
-            jsonfile.writeFileSync('data/cache.json', this.cache)
-        }
-        _.each(lostProductInfo, (info) => productInfo.push(info))
+        const priceInfo: PriceInfo[] = await getPriceInfo(cardIds, cardType, this.accessToken)
+        const productInfo: ProductInfo[] = await getProductInfo(cardIds, this.accessToken)
         let startOfDay = startOfDayFn(new Date()).toISOString()
         startOfDay = startOfDay.slice(0, startOfDay.indexOf('T'))
         for (let i = 0; i < cardIds.length; i++) {
@@ -259,7 +231,7 @@ export default class Util {
         })
     }
 
-    public async getIndex(rarity: Rarity, set: string, cardIds: number[] = []) {
+    public async getIndex(rarity: Rarity, set: string, cardIds: number[] = []): Promise<{ total: number, average: number }> {
         const search = cardIds.length !== 0 ? cardIds : await searchQuery(rarity, set, this.accessToken)
         const history = Util.getHistory()
         const todayObj = startOfDayFn(new Date())
@@ -269,6 +241,10 @@ export default class Util {
         let yesterdayTotal = 0
         for (let i = 0; i < search.length;i++) {
             const historyItem: HistoryCard = history[search[i]]
+            if (!historyItem) {
+                console.log('Could not find history item - GetIndex')
+                continue
+            }
             const todaysPrice = _.find(historyItem.history, (h) => h.date === todayString)
             const yesterdaysPrice = _.find(historyItem.history, (h) => h.date === yesterdayString)
             if (todaysPrice) todayTotal += todaysPrice.marketPrice
@@ -277,5 +253,6 @@ export default class Util {
         console.log(`\nIndex: ${set} (${rarity}) - $${_.round(todayTotal, 2)}`)
         const dailyChange = _.round(todayTotal - yesterdayTotal, 2)
         console.log(`Daily: $${_.round(yesterdayTotal, 2)} -> $${_.round(todayTotal, 2)} ($${dailyChange}/${Math.floor((dailyChange / yesterdayTotal) * 100)}%)`)
+        return { total: todayTotal, average: _.round(todayTotal / search.length, 2) }
     }
 }
