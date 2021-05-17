@@ -77,8 +77,10 @@ export const getProductInfo = async (
     }
 
     if (cardIds.length < 100) {
+        const res = await getProducts(cardIds)
+        _.each(res, (pi) => productInfo.push(pi))
         saveProducts()
-        return await getProducts(cardIds)
+        return productInfo
     }
 
     for (let i = 1; i < Math.floor(cardIds.length / 100) + 2;i++) {
@@ -131,8 +133,10 @@ export const getPriceInfo = async (
     }
 
     if (cardIds.length < 100) {
+        const res = await getPrices(cardIds)
+        _.each(res, (pi) => priceInfo.push(pi))
         savePrices()
-        return await getPrices(cardIds)
+        return priceInfo
     }
     for (let i = 1; i < Math.floor(cardIds.length / 100) + 2;i++) {
         const productInfoSlice = await getPrices(cardIds.slice(((i - 1) * 100), i * 100))

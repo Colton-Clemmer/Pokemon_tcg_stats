@@ -1,5 +1,6 @@
 import jsonfile from 'jsonfile'
 import _ from 'lodash'
+import clc from 'cli-color'
 import fs from 'fs'
 import util from './util'
 import { searchQuery } from './api'
@@ -27,21 +28,21 @@ const utilObj = new util({
 
 const fn = async () => {
     const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    console.log(`Top Ultra rare Cards: ${topUltraCards.length} cards`)
+    console.log(clc.white(`Top Ultra rare Cards: ${topUltraCards.length} cards`))
     const topSecretcards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    console.log(`\nTop Secret rare Cards: ${topSecretcards.length} cards`)
+    console.log(clc.white(`\nTop Secret rare Cards: ${topSecretcards.length} cards`))
     let cards = topUltraCards
     _.each(topSecretcards, (c) => cards.push(c))
-    _.each(watchIds, (card) => cards.push({ id: card.id, set: card.set }))
+    _.each(watchIds, (card) => cards.push(card))
     cards = _.uniq(cards)
     await utilObj.saveHistoricalData(cards, paramCardType)
 
-    console.log('\nWatch List: ')
+    console.log(clc.white('\nWatch List: '))
     util.displayChanges(_.map(watchIds, 'id'), _.map(watchIds, 'price'))
 
-    console.log('\nTop Ultra Rare Cards:')
+    console.log(clc.white('\nTop Ultra Rare Cards:'))
     util.displayChanges(_.map(topUltraCards, 'id'), [], 10)
-    console.log('\nTop Secret Rare Cards:')
+    console.log(clc.white('\nTop Secret Rare Cards:'))
     util.displayChanges(_.map(topSecretcards, 'id'), [], 10)
 
     const maxWatchTime = subMonths(new Date(), maxMonths).getTime()

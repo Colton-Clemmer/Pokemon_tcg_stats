@@ -1,9 +1,12 @@
 {
   "dependencies": {
+    "@types/cli-color": "^2.0.0",
     "@types/jsonfile": "^6.0.0",
     "@types/lodash": "^4.14.168",
     "@types/node": "^15.0.2",
     "@types/node-fetch": "^2.5.10",
+    "clc": "^1.0.2",
+    "cli-color": "^2.0.0",
     "date-fns": "^2.21.3",
     "jsonfile": "^6.1.0",
     "lodash": "^4.17.21",
