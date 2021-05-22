@@ -1,11 +1,13 @@
 import jsonfile from 'jsonfile'
 import _ from 'lodash'
 import clc from 'cli-color'
-import fs from 'fs'
 import util from './util'
 import { searchQuery } from './api'
 import { Rarity, Type } from './enums'
 import { subMonths } from 'date-fns'
+import express from 'express'
+import fs from 'fs'
+import ejs from 'ejs'
 
 const watchIds = [
     { id: 222990, price: 1.9, set: 'Champion\'s Path' }, // Venusaur V
@@ -15,16 +17,29 @@ const watchIds = [
 ]
 
 const keys = jsonfile.readFileSync('data/keys.json')
+const sets: { name: string, date: string }[] = jsonfile.readFileSync('data/sets.json').sets
 const accessToken = keys.accessToken
+const verbose = false
+const utilObj = new util({ accessToken, sets, verbose })
+
+const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString())
+
+const app = express()
+app.get('/', (req, res) => {
+    const cards = util.displayChanges(_.map(watchIds, 'id'), _.map(watchIds, 'price'))
+    console.log(cards)
+    res.send(homePage({
+        title: 'Watch List',
+        numCards: cards.length,
+        cards
+    }))
+})
+
+app.listen(8000)
 
 const maxMonths = 24
 const paramCardType = Type.Holofoil
-const verbose = false
 
-const sets: { name: string, date: string }[] = jsonfile.readFileSync('data/sets.json').sets
-const utilObj = new util({
-    accessToken, sets, verbose
-})
 
 const fn = async () => {
     const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
@@ -94,4 +109,4 @@ const fn = async () => {
         console.log(`Secret Rare index: $${_.round(total.secretRareIndex, 2)} (${total.secretRareCount} cards | $${total.secretRareAverage} average)`)
     }
 }
-fn()
+// fn()

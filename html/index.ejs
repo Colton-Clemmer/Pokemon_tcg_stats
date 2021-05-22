@@ -1,0 +1,30 @@
+<h2>Pokemon TCG</h2>
+
+<nav>
+    <ul>
+        <li>
+            <a href="/watch">Watch List</a>
+        </li>
+        <li>
+            <a href="/top-ultra">Top Ultra Cards</a>
+        </li>
+        <li>
+            <a href="/top-secret">Top Secret Cards</a>
+        </li>
+        <li>
+            <a href="/card-sets">Card Sets</a>
+        </li>
+    </ul>
+    <h3><%= title %></h3>
+    <p><code><%= numCards %> cards</code></p>
+    <ul>
+        <% cards.forEach(function(card) { %>
+        <li>
+            <%= card.name %> (<%= card.id %>) <%= card.todaysPrice %> | <%= card.set %> (<%= card.setDate %>)</br>
+            <% if (card.buyPrice) { %>
+                <b>Profit: </b>$<%= card.buyPrice %> -> <%= card.todaysPrice %> ($<%= card.dailyChange %>/<% card.dailyPercentage %>%)
+            <% } %>
+        </li>
+        <% }); %>
+    </ul>
+</nav>

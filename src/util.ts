@@ -31,12 +31,17 @@ type Change = {
     id: number
     name: string
     set: string
+    setDate?: string
     buyPrice?: number // Price invested in
     todaysPrice?: number // Current value
+    profit?: number
+    profitPercentage?: number
     yesterdaysPrice?: number
     lastWeekPrice?: HistoryItem
     dailyChange?: number
+    dailyPercentage?: number
     weeklyChange?: number
+    weeklyPercentage?: number
 }
 
 export default class Util {
@@ -164,8 +169,12 @@ export default class Util {
         return (fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }).cards
     }
 
-    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0) {
-        console.log(`${cardIds.length} cards...`)
+    public static getSets(): Set[] {
+        return (fs.existsSync('data/sets.json') ? jsonfile.readFileSync('data/sets.json') : { sets: [] }).sets
+    }
+
+    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0): Change[] {
+        // console.log(`${cardIds.length} cards...`)
         const history = this.getHistory()
         const startOfDayObj = startOfDayFn(new Date())
         const startOfDay = this.getDateString(new Date())
@@ -179,7 +188,12 @@ export default class Util {
                 notFound.push(id)
                 continue
             }
-            const changeObj: Change = { id, name: historicalData.name, set: historicalData.set }
+            const changeObj: Change = {
+                id,
+                name: historicalData.name,
+                set: historicalData.set,
+                setDate: _.find(this.getSets(), (s) => s.name === historicalData.set)?.date
+            }
             if (i < prices.length) {
                 changeObj.buyPrice = prices[i]
             }
@@ -214,22 +228,28 @@ export default class Util {
         changes = _.reverse(_.orderBy(changes, (c) => c.weeklyChange && c.lastWeekPrice ? c.weeklyChange / c.lastWeekPrice.marketPrice : 0))
         if (limit) {
             changes = _.slice(changes, 0, limit)
-        }
-        changes = _.uniqBy(changes, (c) => c.id)
-        _.each(changes, (c) => {
-            console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
-            if (c.buyPrice && c.todaysPrice) {
-                const profit = _.round(c.todaysPrice - c.buyPrice, 2)
-                console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
-            }
-            if (c.dailyChange && c.yesterdaysPrice) {
-                const todayString = this.getDateString(new Date())
-                console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-            }
-            if (c.weeklyChange && c.lastWeekPrice) {
-                console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekPrice.date)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice.marketPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-            }
-        })
+        }        // _.each(changes, (c) => {
+            //     console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
+            //     if (c.buyPrice && c.todaysPrice) {
+            //         const profit = _.round(c.todaysPrice - c.buyPrice, 2)
+            //         console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
+            //     }
+            //     if (c.dailyChange && c.yesterdaysPrice) {
+            //         const todayString = this.getDateString(new Date())
+            //         console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+            //     }
+            //     if (c.weeklyChange && c.lastWeekPrice) {
+            //         console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekPrice.date)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice.marketPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+            //     }
+            // })
+        // })
+        return _.map(changes, (c) => ({
+            ...c,
+            profit: c.todaysPrice && c.buyPrice ? _.round(c.todaysPrice - c.buyPrice, 2) : 0,
+            profitPercentage: c.todaysPrice && c.buyPrice ? _.round(((c.todaysPrice - c.buyPrice)/c.buyPrice) * 100, 2) : 0,
+            dailyPercentage: c.dailyChange && c.yesterdaysPrice ? _.round((c.dailyChange / c.yesterdaysPrice) * 100, 2) : 0,
+            weeklyChange: c.weeklyChange && c.lastWeekPrice ? _.round((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) : 0
+        }))
     }
 
     public async getIndex(rarity: Rarity, set: string, cardIds: number[] = []): Promise<{ total: number, average: number }> {
