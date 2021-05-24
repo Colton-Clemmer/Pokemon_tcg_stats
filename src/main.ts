@@ -9,6 +9,12 @@ import express from 'express'
 import fs from 'fs'
 import ejs from 'ejs'
 
+/*
+    Add sorting for daily, weekly, and monthly change
+    filtering for top ultra and secret cards to determine date range and max or min price
+    Add sets page with indexes for list
+*/
+
 const watchIds = [
     { id: 222990, price: 1.9, set: 'Champion\'s Path' }, // Venusaur V
     { id: 234179, price: 3.5, set: 'SWSH05: Battle Styles' }, // Corviknight VMAX
@@ -25,12 +31,42 @@ const utilObj = new util({ accessToken, sets, verbose })
 const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString())
 
 const app = express()
+
 app.get('/', (req, res) => {
+    res.redirect('/watch')
+})
+
+app.get('/watch', (req, res) => {
     const cards = util.displayChanges(_.map(watchIds, 'id'), _.map(watchIds, 'price'))
-    console.log(cards)
+    const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Watch List',
         numCards: cards.length,
+        todayString,
+        cards
+    }))
+})
+
+app.get('/top-ultra', async (req, res) => {
+    const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
+    const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'))
+    const todayString = util.getDateString(new Date())
+    res.send(homePage({
+        title: 'Watch List',
+        numCards: cards.length,
+        todayString,
+        cards
+    }))
+})
+
+app.get('/top-secret', async (req, res) => {
+    const topSecretCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
+    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'))
+    const todayString = util.getDateString(new Date())
+    res.send(homePage({
+        title: 'Watch List',
+        numCards: cards.length,
+        todayString,
         cards
     }))
 })

@@ -37,11 +37,16 @@ type Change = {
     profit?: number
     profitPercentage?: number
     yesterdaysPrice?: number
-    lastWeekPrice?: HistoryItem
+    lastWeekPrice?: number
+    lastWeekDate?: string
     dailyChange?: number
     dailyPercentage?: number
     weeklyChange?: number
     weeklyPercentage?: number
+    lastMonthPrice?: number
+    monthlyChange?: number
+    monthlyPercentage?: number
+    lastMonthDate?: string
 }
 
 export default class Util {
@@ -210,45 +215,66 @@ export default class Util {
                 const lastWeekObj = this.getDateString(subDays(new Date(), j))
                 lastWeekPrice = _.find(historicalData.history, (h) => h.date === lastWeekObj)
                 if (lastWeekPrice) {
-                    changeObj.lastWeekPrice = lastWeekPrice
+                    changeObj.lastWeekPrice = lastWeekPrice.marketPrice
+                    changeObj.lastWeekDate = lastWeekPrice.date
                     changeObj.weeklyChange = _.round(todaysPrice.marketPrice - lastWeekPrice.marketPrice, 2)
                     break
                 }
             }
             if (!lastWeekPrice && changeObj.todaysPrice) {
-                changeObj.lastWeekPrice = todaysPrice
-                changeObj.weeklyChange = 0
+                changeObj.lastWeekPrice = changeObj.yesterdaysPrice
+                changeObj.lastWeekDate = todaysPrice.date
+                changeObj.weeklyChange = changeObj.dailyChange
 
             }
+
+            let lastMonthPrice
+            for (let j = 31; j > 0;j--) {
+                const lastMonthObj = this.getDateString(subDays(new Date(), j))
+                lastMonthPrice = _.find(historicalData.history, (h) => h.date === lastMonthObj)
+                if (lastMonthPrice) {
+                    changeObj.lastMonthPrice = lastMonthPrice.marketPrice
+                    changeObj.lastMonthDate = lastMonthPrice.date
+                    changeObj.monthlyChange = _.round(todaysPrice.marketPrice - lastMonthPrice.marketPrice, 2)
+                    break
+                }
+            }
+            if (!lastMonthPrice && changeObj.lastWeekPrice) {
+                changeObj.lastMonthPrice = changeObj.lastWeekPrice
+                changeObj.lastMonthDate = changeObj.lastWeekDate
+                changeObj.monthlyChange = changeObj.weeklyChange
+            }
+
             changes.push(changeObj)
         }
         if (minPrice > 0) {
             changes = _.filter(changes, (c) => c.todaysPrice && c.todaysPrice > minPrice) as Change[]
         }
-        changes = _.reverse(_.orderBy(changes, (c) => c.weeklyChange && c.lastWeekPrice ? c.weeklyChange / c.lastWeekPrice.marketPrice : 0))
+        changes = _.reverse(_.orderBy(changes, (c) => c.monthlyChange && c.lastMonthPrice ? c.monthlyChange / c.lastMonthPrice : 0))
         if (limit) {
             changes = _.slice(changes, 0, limit)
-        }        // _.each(changes, (c) => {
-            //     console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
-            //     if (c.buyPrice && c.todaysPrice) {
-            //         const profit = _.round(c.todaysPrice - c.buyPrice, 2)
-            //         console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
-            //     }
-            //     if (c.dailyChange && c.yesterdaysPrice) {
-            //         const todayString = this.getDateString(new Date())
-            //         console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-            //     }
-            //     if (c.weeklyChange && c.lastWeekPrice) {
-            //         console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekPrice.date)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice.marketPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-            //     }
-            // })
+        }
+        // _.each(changes, (c) => {
+        //     console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
+        //     if (c.buyPrice && c.todaysPrice) {
+        //         const profit = _.round(c.todaysPrice - c.buyPrice, 2)
+        //         console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
+        //     }
+        //     if (c.dailyChange && c.yesterdaysPrice) {
+        //         const todayString = this.getDateString(new Date())
+        //         console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+        //     }
+        //     if (c.weeklyChange && c.lastWeekPrice) {
+        //         console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekPrice.date)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice.marketPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+        //     }
         // })
         return _.map(changes, (c) => ({
             ...c,
             profit: c.todaysPrice && c.buyPrice ? _.round(c.todaysPrice - c.buyPrice, 2) : 0,
             profitPercentage: c.todaysPrice && c.buyPrice ? _.round(((c.todaysPrice - c.buyPrice)/c.buyPrice) * 100, 2) : 0,
-            dailyPercentage: c.dailyChange && c.yesterdaysPrice ? _.round((c.dailyChange / c.yesterdaysPrice) * 100, 2) : 0,
-            weeklyChange: c.weeklyChange && c.lastWeekPrice ? _.round((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) : 0
+            dailyPercentage: c.dailyChange && c.yesterdaysPrice ? _.round((c.dailyChange / c.yesterdaysPrice) * 100, 0) : 0,
+            weeklyPercentage: c.weeklyChange && c.lastWeekPrice ? _.round((c.weeklyChange / c.lastWeekPrice) * 100, 0) : 0,
+            monthlyPercentage: c.monthlyChange && c.lastMonthPrice ? _.round((c.monthlyChange / c.lastMonthPrice) * 100, 0) : 0,
         }))
     }
 

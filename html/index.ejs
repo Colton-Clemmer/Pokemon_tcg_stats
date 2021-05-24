@@ -19,10 +19,22 @@
     <p><code><%= numCards %> cards</code></p>
     <ul>
         <% cards.forEach(function(card) { %>
-        <li>
-            <%= card.name %> (<%= card.id %>) <%= card.todaysPrice %> | <%= card.set %> (<%= card.setDate %>)</br>
+        <li style="padding-bottom: 30px">
+            <h4 style="margin: 0;">
+                <%= card.name %> $<%= card.todaysPrice %> 
+            </h4> 
+            ID: <%= card.id %> | <%= card.set %> (<%= card.setDate %>)</br>
             <% if (card.buyPrice) { %>
-                <b>Profit: </b>$<%= card.buyPrice %> -> <%= card.todaysPrice %> ($<%= card.dailyChange %>/<% card.dailyPercentage %>%)
+                <b>Profit: </b>$<%= card.buyPrice %> -> <%= card.todaysPrice %> ($<%= card.dailyChange %> / <% card.dailyPercentage %>%)<br>
+            <% } %>
+            <% if (card.dailyChange) { %>
+                <b>Daily: </b><%= todayString %> $<%= card.dailyChange %> / <%= card.dailyPercentage %>% ($<%= card.yesterdaysPrice %> -> $<%= card.todaysPrice %>)<br>
+            <% } %>
+            <% if (card.weeklyChange) { %>
+                <b>Weekly: </b><%= card.lastWeekDate %> $<%= card.weeklyChange %> / <%= card.weeklyPercentage %>% ($<%= card.lastWeekPrice %> -> $<%= card.todaysPrice %>)<br>
+            <% } %>
+            <% if (card.monthlyChange) { %>
+                <b>Monthly: </b><%= card.lastMonthDate %> $<%= card.monthlyChange %> / <%= card.monthlyPercentage %>% ($<%= card.lastMonthPrice %> -> $<%= card.todaysPrice %>)
             <% } %>
         </li>
         <% }); %>

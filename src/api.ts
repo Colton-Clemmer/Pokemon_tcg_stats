@@ -12,7 +12,7 @@ export const searchQuery = async (
     set: string,
     accessToken: string
 ): Promise<number[]> => {
-    const searchCache = fs.existsSync('data/search-cache.json') ? jsonfile.readFileSync('data/search-cache.json') : { }
+    const searchCache: { [searchKey: string]: number[] } = fs.existsSync('data/search-cache.json') ? jsonfile.readFileSync('data/search-cache.json') : { }
     const searchKey = `${set}-${rarity}`
     if (searchCache[searchKey]) {
         return searchCache[searchKey]
@@ -47,7 +47,9 @@ export const getProductInfo = async (
     cardIds: number[],
     accessToken: string
 ): Promise<ProductInfo[]> => {
-    const productCache = fs.existsSync('data/product-cache.json') ? jsonfile.readFileSync('data/product-cache.json') : { }
+    const productCache: {
+        [id: string]: ProductInfo
+    } = fs.existsSync('data/product-cache.json') ? jsonfile.readFileSync('data/product-cache.json') : { }
     const foundIds = _.filter(_.keys(productCache), (id) => !!productCache[id])
     const productInfo: ProductInfo[] = _.map(foundIds, (id) => productCache[id])
     cardIds = _.reject(cardIds, (id) => _.some(foundIds, (fid) => fid === id.toString()))
@@ -72,7 +74,12 @@ export const getProductInfo = async (
     }
 
     const saveProducts = () => {
-        _.each(cardIds, (id) => productCache[id] = _.find(productInfo, (pi) => pi.productId === id))
+        _.each(cardIds, (id) => {
+            const info = _.find(productInfo, (pi) => pi.productId === id)
+            if (info) {
+                productCache[id] = info
+            }
+        })
         jsonfile.writeFileSync('data/product-cache.json', productCache)
     }
 
@@ -97,7 +104,9 @@ export const getPriceInfo = async (
     cardType: Type,
     accessToken: string
 ): Promise<PriceInfo[]> => {
-    const priceCache = fs.existsSync('data/price-cache.json') ? jsonfile.readFileSync('data/price-cache.json') : { }
+    const priceCache: {
+        [date: string]: { [id: string]: PriceInfo }
+    } = fs.existsSync('data/price-cache.json') ? jsonfile.readFileSync('data/price-cache.json') : { }
     let todayString = startOfDay(new Date()).toISOString()
     todayString = todayString.slice(0, todayString.indexOf('T'))
     if (!priceCache[todayString]) priceCache[todayString] = { }
@@ -126,7 +135,12 @@ export const getPriceInfo = async (
     }
 
     const savePrices = () => {
-        _.each(cardIds, (id) => priceCache[todayString][id] = _.find(priceInfo, (pi) => pi.productId === id))
+        _.each(cardIds, (id) => {
+            const info = _.find(priceInfo, (pi) => pi.productId === id)
+            if (info) {
+                priceCache[todayString][id] = info
+            }
+        })
         const oldDays = _.filter(_.keys(priceCache), (day) => day !== todayString)
         _.each(oldDays, (day) => delete priceCache[day])
         jsonfile.writeFileSync('data/price-cache.json', priceCache)
