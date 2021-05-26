@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import clc from 'cli-color'
 import fs from 'fs'
 import { subDays, startOfDay as startOfDayFn } from 'date-fns'
 import jsonfile from 'jsonfile'

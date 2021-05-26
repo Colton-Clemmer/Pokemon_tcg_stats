@@ -2,7 +2,7 @@ import jsonfile from 'jsonfile'
 import _ from 'lodash'
 import clc from 'cli-color'
 import util from './util'
-import { searchQuery } from './api'
+import { getPriceInfo, searchQuery } from './api'
 import { Rarity, Type } from './enums'
 import { subMonths } from 'date-fns'
 import express from 'express'
@@ -36,8 +36,14 @@ app.get('/', (req, res) => {
     res.redirect('/watch')
 })
 
-app.get('/watch', (req, res) => {
-    const cards = util.displayChanges(_.map(watchIds, 'id'), _.map(watchIds, 'price'))
+app.get('/bootstrap.css', (req, res) => {
+    res.sendFile(__dirname.slice(0, __dirname.indexOf('dist')) + 'css/bootstrap.css')
+})
+
+app.get('/watch', async (req, res) => {
+    const ids = _.map(watchIds, 'id')
+    await getPriceInfo(ids, Type.Holofoil, accessToken)
+    const cards = util.displayChanges(ids, _.map(watchIds, 'price'))
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Watch List',
@@ -52,7 +58,7 @@ app.get('/top-ultra', async (req, res) => {
     const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'))
     const todayString = util.getDateString(new Date())
     res.send(homePage({
-        title: 'Watch List',
+        title: 'Top Ultra',
         numCards: cards.length,
         todayString,
         cards
@@ -64,7 +70,7 @@ app.get('/top-secret', async (req, res) => {
     const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'))
     const todayString = util.getDateString(new Date())
     res.send(homePage({
-        title: 'Watch List',
+        title: 'Top Secret',
         numCards: cards.length,
         todayString,
         cards
