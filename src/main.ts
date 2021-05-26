@@ -43,36 +43,42 @@ app.get('/bootstrap.css', (req, res) => {
 app.get('/watch', async (req, res) => {
     const ids = _.map(watchIds, 'id')
     await getPriceInfo(ids, Type.Holofoil, accessToken)
-    const cards = util.displayChanges(ids, _.map(watchIds, 'price'))
+    const cards = util.displayChanges(ids, _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Watch List',
         numCards: cards.length,
         todayString,
+        sorting: req.query.sort || 'monthly',
+        minprice: req.query.minprice || '0',
         cards
     }))
 })
 
 app.get('/top-ultra', async (req, res) => {
     const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'))
+    const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Top Ultra',
         numCards: cards.length,
         todayString,
+        sorting: req.query.sort || 'monthly',
+        minprice: req.query.minprice || '0',
         cards
     }))
 })
 
 app.get('/top-secret', async (req, res) => {
     const topSecretCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'))
+    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Top Secret',
         numCards: cards.length,
         todayString,
+        sorting: req.query.sort || 'monthly',
+        minprice: req.query.minprice || '0',
         cards
     }))
 })

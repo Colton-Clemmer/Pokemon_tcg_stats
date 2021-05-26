@@ -177,7 +177,7 @@ export default class Util {
         return (fs.existsSync('data/sets.json') ? jsonfile.readFileSync('data/sets.json') : { sets: [] }).sets
     }
 
-    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0): Change[] {
+    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0, sort: string = 'monthly'): Change[] {
         // console.log(`${cardIds.length} cards...`)
         const history = this.getHistory()
         const startOfDayObj = startOfDayFn(new Date())
@@ -249,7 +249,16 @@ export default class Util {
         if (minPrice > 0) {
             changes = _.filter(changes, (c) => c.todaysPrice && c.todaysPrice > minPrice) as Change[]
         }
-        changes = _.reverse(_.orderBy(changes, (c) => c.monthlyChange && c.lastMonthPrice ? c.monthlyChange / c.lastMonthPrice : 0))
+        changes = _.reverse(_.orderBy(changes, (c) => {
+            switch (sort) {
+                case 'daily':
+                    return c.dailyChange && c.yesterdaysPrice ? c.dailyChange / c.yesterdaysPrice : 0
+                case 'weekly':
+                    return c.weeklyChange && c.lastWeekPrice ? c.weeklyChange / c.lastWeekPrice : 0
+                case 'monthly':
+                    return c.monthlyChange && c.lastMonthPrice ? c.monthlyChange / c.lastMonthPrice : 0
+            }
+        }))
         if (limit) {
             changes = _.slice(changes, 0, limit)
         }

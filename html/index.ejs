@@ -5,24 +5,25 @@
         <link href="/bootstrap.css" rel="stylesheet"/>
     </head>
     <body>
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light" style="padding-left: 15px">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="/watch">Watch List</a>
+                    <a class="nav-link active" aria-current="page" href="/watch">Watch List</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="/top-ultra">Top Ultra</a>
+                    <a class="nav-link active" aria-current="page" href="/top-ultra">Top Ultra</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="/top-secret">Top Secret</a>
+                    <a class="nav-link active" aria-current="page" href="/top-secret">Top Secret</a>
                 </li>
                 <li class="nav-item">
-                <a class="nav-link active" aria-current="page" href="/sets">Card Sets</a>
+                    <a class="nav-link active" aria-current="page" href="/sets">Card Sets</a>
                 </li>
             </ul>
         </nav>
         
-        <div class="container">
+        
+        <div class="container" style="margin-top: 15px">
             <div class="row">
                 <div class="col-sm-12">
                     <h2>Pokemon TCG | <%= title %></h2>
@@ -32,6 +33,25 @@
             <div class="row">
                 <div class="col-sm-12">
                     <p style="text-align: center;"><code><%= numCards %> cards</code></p>
+                </div>
+            </div>
+
+            <div class="row" style="margin-bottom: 15px">
+                <div class="col-sm-6">
+                    <b>Sorting:</b> 
+                    <div class="btn-group">
+                        <a class="btn btn-primary <%= sorting === 'daily' ? 'active' : ''%>" href="?sort=daily&minprice=<%=minprice%>">Daily</a>
+                        <a class="btn btn-primary <%= sorting === 'weekly' ? 'active' : ''%>" href="?sort=weekly&minprice=<%=minprice%>">Weekly</a>
+                        <a class="btn btn-primary <%= sorting === 'monthly' ? 'active' : ''%>" href="?sort=monthly&minprice=<%=minprice%>">Monthly</a>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <b>Min Price:</b>
+                    <div class="btn-group">
+                        <a class="btn btn-primary <%= minprice === '0' ? 'active' : ''%>" href="?minprice=0&sort=<%= sorting%>">0</a>
+                        <a class="btn btn-primary <%= minprice === '10' ? 'active' : ''%>" href="?minprice=10&sort=<%= sorting%>">10</a>
+                        <a class="btn btn-primary <%= minprice === '50' ? 'active' : ''%>" href="?minprice=50&sort=<%= sorting%>">50</a>
+                    </div>
                 </div>
             </div>
 
@@ -49,12 +69,18 @@
                         <% } %>
                         <% if (card.dailyChange) { %>
                             <b>Daily: </b><%= todayString %> $<%= card.dailyChange %> / <%= card.dailyPercentage %>% ($<%= card.yesterdaysPrice %> -> $<%= card.todaysPrice %>)<br>
+                        <% } else { %>
+                            <b>Daily: </b>0%<br>
                         <% } %>
                         <% if (card.weeklyChange) { %>
                             <b>Weekly: </b><%= card.lastWeekDate %> $<%= card.weeklyChange %> / <%= card.weeklyPercentage %>% ($<%= card.lastWeekPrice %> -> $<%= card.todaysPrice %>)<br>
+                        <% } else { %>
+                            <b>Weekly: </b>0%<br>
                         <% } %>
                         <% if (card.monthlyChange) { %>
                             <b>Monthly: </b><%= card.lastMonthDate %> $<%= card.monthlyChange %> / <%= card.monthlyPercentage %>% ($<%= card.lastMonthPrice %> -> $<%= card.todaysPrice %>)
+                        <% } else { %>
+                            <b>Monthly: </b>0%
                         <% } %>
                         </div>
                     </div>
