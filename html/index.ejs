@@ -5,22 +5,7 @@
         <link href="/bootstrap.css" rel="stylesheet"/>
     </head>
     <body>
-        <nav class="navbar navbar-expand-lg navbar-light bg-light" style="padding-left: 15px">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" href="/watch">Watch List</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" href="/top-ultra">Top Ultra</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" href="/top-secret">Top Secret</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" href="/sets">Card Sets</a>
-                </li>
-            </ul>
-        </nav>
+        <%- include('nav') -%>
         
         
         <div class="container" style="margin-top: 15px">
@@ -65,7 +50,7 @@
                         </div>
                         <div class="card-body">
                         <% if (card.buyPrice) { %>
-                            <b>Profit: </b>$<%= card.buyPrice %> -> <%= card.todaysPrice %> ($<%= card.dailyChange %> / <% card.dailyPercentage %>%)<br>
+                            <b>Profit: </b>$<%= card.buyPrice %> -> $<%= card.todaysPrice %> ($<%= card.profit %> / <%= card.profitPercentage %>%)<br>
                         <% } %>
                         <% if (card.dailyChange) { %>
                             <b>Daily: </b><%= todayString %> $<%= card.dailyChange %> / <%= card.dailyPercentage %>% ($<%= card.yesterdaysPrice %> -> $<%= card.todaysPrice %>)<br>

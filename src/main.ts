@@ -28,7 +28,7 @@ const accessToken = keys.accessToken
 const verbose = false
 const utilObj = new util({ accessToken, sets, verbose })
 
-const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString())
+const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString(), { views: [ 'html'] })
 
 const app = express()
 
@@ -83,7 +83,7 @@ app.get('/top-secret', async (req, res) => {
     }))
 })
 
-app.listen(8000)
+// app.listen(8000)
 
 const maxMonths = 24
 const paramCardType = Type.Holofoil
@@ -157,4 +157,4 @@ const fn = async () => {
         console.log(`Secret Rare index: $${_.round(total.secretRareIndex, 2)} (${total.secretRareCount} cards | $${total.secretRareAverage} average)`)
     }
 }
-// fn()
+fn()

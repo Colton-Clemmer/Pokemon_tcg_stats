@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>Pokemon TCG</title>
+        <link href="/bootstrap.css" rel="stylesheet"/>
+    </head>
+    <body>
+        <%- include('nav') -%>
+        <div class="container">
+            <div class="row">
+                <div class="col-sm-12">
+                    <% sets.forEach(function(set) { %>
+                    <div class="card" style="margin-bottom: 15px;">
+                        <div class="card-header">
+                            <%= set.title %> (released <%= set.date %>)
+                        </div>
+                        <div class="card-body">
+                            <b>Monthly total change: </b><%= set.monthlyTotalChange %><br>
+                            <b>Monthly average change</b> <%= set.monthlyAverageChange %><br>
+                            <b>Total Index:</b> <%= set.total %><br>
+                            <b>All average:</b> <%= set.allAverage %><br>
+                            <b>Ultra Rare Index:</b> <%= set.ultraRareIndex %><br>
+                            <b>Ultra Rare Average:</b> <%= set.ultraRareAverage %><br>
+                            <b>Secret Rare Index:</b> <%= set.secretRareIndex %><br>
+                            <b>Secret Rare Average:</b> <%= set.secretRareAverage %>
+                        </div>
+                    </div>
+                    <% }) %>
+                </div>
+            </div>
+        </div> 
+    </body>
+</html>
