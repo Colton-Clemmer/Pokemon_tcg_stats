@@ -3,7 +3,7 @@ import _ from 'lodash'
 import clc from 'cli-color'
 import util from './util'
 import { getPriceInfo, searchQuery } from './api'
-import { Rarity, Type } from './enums'
+import { Rarity, Type, SetData } from './enums'
 import { subMonths } from 'date-fns'
 import express from 'express'
 import fs from 'fs'
@@ -23,12 +23,14 @@ const watchIds = [
 ]
 
 const keys = jsonfile.readFileSync('data/keys.json')
-const sets: { name: string, date: string }[] = jsonfile.readFileSync('data/sets.json').sets
+const setData: { name: string, date: string }[] = jsonfile.readFileSync('data/sets.json').sets
 const accessToken = keys.accessToken
 const verbose = false
-const utilObj = new util({ accessToken, sets, verbose })
+const utilObj = new util({ accessToken, sets: setData, verbose })
 
-const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString(), { views: [ 'html'] })
+const ejsOptions = { views: [ 'html' ] }
+const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString(), ejsOptions)
+const setsPage = ejs.compile(fs.readFileSync('html/sets.ejs').toString(), ejsOptions)
 
 const app = express()
 
@@ -60,7 +62,7 @@ app.get('/top-ultra', async (req, res) => {
     const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
-        title: 'Top Ultra',
+        title: 'Top Ultra Cards',
         numCards: cards.length,
         todayString,
         sorting: req.query.sort || 'monthly',
@@ -74,7 +76,7 @@ app.get('/top-secret', async (req, res) => {
     const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
-        title: 'Top Secret',
+        title: 'Top Secret Cards',
         numCards: cards.length,
         todayString,
         sorting: req.query.sort || 'monthly',
@@ -83,7 +85,14 @@ app.get('/top-secret', async (req, res) => {
     }))
 })
 
-// app.listen(8000)
+app.get('/sets', async (req, res) => {
+    const totals = await utilObj.getTotals(setData, maxMonths, paramCardType)
+    res.send(setsPage({
+        sets: totals
+    }))
+})
+
+app.listen(8000)
 
 const maxMonths = 24
 const paramCardType = Type.Holofoil
@@ -108,53 +117,14 @@ const fn = async () => {
     console.log(clc.white('\nTop Secret Rare Cards:'))
     util.displayChanges(_.map(topSecretcards, 'id'), [], 10)
 
-    const maxWatchTime = subMonths(new Date(), maxMonths).getTime()
-    const watchSets = _.map(_.filter(sets, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
-    let totals = [ ]
-    for (let i = 0; i < watchSets.length;i++) {
-        const currentSet = watchSets[i]
-        const date = _.find(sets, (s) => s.name === currentSet)?.date
-        console.log(`\n\n\nGetting ${currentSet} indexes released ${date}`)
-        const ultraRareCards = _.map(await searchQuery(Rarity.UltraRare, currentSet, accessToken), (id) => ({ id, set: currentSet }))
-        const secretRareCards = _.map(await searchQuery(Rarity.SecretRare, currentSet, accessToken), (id) => ({ id, set: currentSet }))
-        const allCards = ultraRareCards
-        _.each(secretRareCards, (id) => allCards.push(id))
-        await utilObj.saveHistoricalData(allCards, paramCardType)
-        const ultraRareIds = _.map(ultraRareCards, 'id')
-        const secretRareIds = _.map(secretRareCards, 'id')
-
-        console.log(`\n${currentSet} Ultra Rare Cards: ${ultraRareCards.length} cards`)
-        const { total: ultraRareIndex, average: ultraRareAverage } = await utilObj.getIndex(Rarity.UltraRare, currentSet, ultraRareIds)
-        console.log(`${currentSet} Secret Rare Cards: ${secretRareCards.length} cards`)
-        const { total: secretRareIndex, average: secretRareAverage } = await utilObj.getIndex(Rarity.SecretRare, currentSet, secretRareIds)
-
-        console.log(`\n\n${currentSet} Ultra Rares: `)
-        util.displayChanges(ultraRareIds, [], 10)
-        console.log(`\n\n${currentSet} Secret Rares: `)
-        util.displayChanges(secretRareIds, [], 10)
-        const totalIndex =  ultraRareIndex + secretRareIndex
-        totals.push({
-            set: currentSet,
-            date,
-            ultraRareCount: ultraRareCards.length,
-            secretRareCount: secretRareCards.length,
-            ultraRareIndex,
-            ultraRareAverage,
-            secretRareIndex,
-            secretRareAverage,
-            totalIndex,
-            monthlyIncrease: date ? totalIndex / util.getMonthsFromToday(date) : 0
-        })
-    }
-
-    totals = _.reverse(_.orderBy(totals, (t) => (t.ultraRareAverage + t.secretRareAverage) / 2))
+    const totals = await utilObj.getTotals(setData, maxMonths, paramCardType, true)
     for (let i = 0; i < totals.length;i++) {
         const total = totals[i]
         console.log(`\nSet: ${total.set} released ${total.date}`)
-        console.log(`Monthly increase: $${_.round(total.monthlyIncrease, 2)}`)
-        console.log(`Total index: $${_.round(total.totalIndex, 2)} (${total.ultraRareCount + total.secretRareCount} cards | $${_.round((total.ultraRareAverage + total.secretRareAverage) / 2, 2)} average)`)
-        console.log(`Ultra Rare index: $${_.round(total.ultraRareIndex, 2)} (${total.ultraRareCount} cards | $${total.ultraRareAverage} average)`)
-        console.log(`Secret Rare index: $${_.round(total.secretRareIndex, 2)} (${total.secretRareCount} cards | $${total.secretRareAverage} average)`)
+        console.log(`Monthly increase: $${_.round(total.averageMonthlyIncrease, 2)}`)
+        console.log(`Total index: $${_.round(total.allCards.totalPrice, 2)} (${total.allCards.count} cards | $${total.allCards.averagePrice} average)`)
+        console.log(`Ultra Rare index: $${_.round(total.ultraRares.totalPrice, 2)} (${total.ultraRares.count} cards | $${total.ultraRares.averagePrice} average)`)
+        console.log(`Secret Rare index: $${total.secretRares.count} (${total.secretRares.count} cards | $${total.secretRares.averagePrice} average)`)
     }
 }
-fn()
+// fn()

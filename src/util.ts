@@ -1,9 +1,19 @@
 import _ from 'lodash'
+import clc from 'cli-color'
 import fs from 'fs'
-import { subDays, startOfDay as startOfDayFn } from 'date-fns'
+import { subDays, startOfDay as startOfDayFn, subMonths } from 'date-fns'
 import jsonfile from 'jsonfile'
 import { getPriceInfo, getProductInfo, searchQuery } from './api'
-import { Rarity, Type, Set, ProductInfo, PriceInfo, MarketInfo } from './enums'
+import {
+    Rarity,
+    Type,
+    Set,
+    ProductInfo,
+    PriceInfo,
+    MarketInfo,
+    SetData,
+    SetTotal
+} from './enums'
 
 const today = new Date()
 
@@ -177,7 +187,37 @@ export default class Util {
         return (fs.existsSync('data/sets.json') ? jsonfile.readFileSync('data/sets.json') : { sets: [] }).sets
     }
 
-    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0, sort: string = 'monthly'): Change[] {
+    public static getChange(
+        currentPrice: number,
+        numDays: number,
+        history: HistoryItem[]
+    ): {
+        price: number
+        date: string
+        change: number
+    } {
+        const obj = { price: 0, date: '', change: 0 }
+        let historyData
+        for (let j = numDays; j > 0;j--) {
+            const lastMonthObj = this.getDateString(subDays(new Date(), j))
+            historyData = _.find(history, (h) => h.date === lastMonthObj)
+            if (historyData) {
+                obj.price = historyData.marketPrice
+                obj.date = historyData.date
+                obj.change = _.round(currentPrice - historyData.marketPrice, 2)
+                break
+            }
+        }
+        if (!historyData) {
+            obj.price = 0
+            obj.date = 'Not Found'
+            obj.change = 0
+        }
+
+        return obj
+    }
+
+    public static displayChanges(cardIds: number[], prices: number[] = [], limit: number = 0, minPrice: number = 0, sort: string = 'monthly', verbose: boolean = false): Change[] {
         // console.log(`${cardIds.length} cards...`)
         const history = this.getHistory()
         const startOfDayObj = startOfDayFn(new Date())
@@ -209,40 +249,16 @@ export default class Util {
             if (todaysPrice && yesterdaysPrice) {
                 changeObj.dailyChange = _.round(todaysPrice.marketPrice - yesterdaysPrice.marketPrice, 2)
             }
-            let lastWeekPrice
-            for (let j = 7; j > 0;j--) {
-                const lastWeekObj = this.getDateString(subDays(new Date(), j))
-                lastWeekPrice = _.find(historicalData.history, (h) => h.date === lastWeekObj)
-                if (lastWeekPrice) {
-                    changeObj.lastWeekPrice = lastWeekPrice.marketPrice
-                    changeObj.lastWeekDate = lastWeekPrice.date
-                    changeObj.weeklyChange = _.round(todaysPrice.marketPrice - lastWeekPrice.marketPrice, 2)
-                    break
-                }
-            }
-            if (!lastWeekPrice && changeObj.todaysPrice) {
-                changeObj.lastWeekPrice = changeObj.yesterdaysPrice
-                changeObj.lastWeekDate = todaysPrice.date
-                changeObj.weeklyChange = changeObj.dailyChange
 
-            }
+            const lastWeekObj = Util.getChange(todaysPrice.marketPrice, 7, historicalData.history)
+            changeObj.lastWeekPrice = lastWeekObj.price
+            changeObj.lastWeekDate = lastWeekObj.date
+            changeObj.weeklyChange = lastWeekObj.change
 
-            let lastMonthPrice
-            for (let j = 31; j > 0;j--) {
-                const lastMonthObj = this.getDateString(subDays(new Date(), j))
-                lastMonthPrice = _.find(historicalData.history, (h) => h.date === lastMonthObj)
-                if (lastMonthPrice) {
-                    changeObj.lastMonthPrice = lastMonthPrice.marketPrice
-                    changeObj.lastMonthDate = lastMonthPrice.date
-                    changeObj.monthlyChange = _.round(todaysPrice.marketPrice - lastMonthPrice.marketPrice, 2)
-                    break
-                }
-            }
-            if (!lastMonthPrice && changeObj.lastWeekPrice) {
-                changeObj.lastMonthPrice = changeObj.lastWeekPrice
-                changeObj.lastMonthDate = changeObj.lastWeekDate
-                changeObj.monthlyChange = changeObj.weeklyChange
-            }
+            const lastMonthObj = Util.getChange(todaysPrice.marketPrice, 31, historicalData.history)
+            changeObj.lastMonthPrice = lastMonthObj.price
+            changeObj.lastMonthDate = lastMonthObj.date
+            changeObj.monthlyChange = lastMonthObj.change
 
             changes.push(changeObj)
         }
@@ -262,20 +278,22 @@ export default class Util {
         if (limit) {
             changes = _.slice(changes, 0, limit)
         }
-        // _.each(changes, (c) => {
-        //     console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
-        //     if (c.buyPrice && c.todaysPrice) {
-        //         const profit = _.round(c.todaysPrice - c.buyPrice, 2)
-        //         console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
-        //     }
-        //     if (c.dailyChange && c.yesterdaysPrice) {
-        //         const todayString = this.getDateString(new Date())
-        //         console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-        //     }
-        //     if (c.weeklyChange && c.lastWeekPrice) {
-        //         console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekPrice.date)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice.marketPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice.marketPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
-        //     }
-        // })
+        if (verbose) {
+            _.each(changes, (c) => {
+                console.log(`\n${clc.red(c.name)} (${clc.redBright(c.id)}) ${clc.blueBright('$' + c.todaysPrice)} | ${clc.yellowBright(c.set)}`)
+                if (c.buyPrice && c.todaysPrice) {
+                    const profit = _.round(c.todaysPrice - c.buyPrice, 2)
+                    console.log(clc.blackBright('Profit: ') + `${clc.blueBright('$' + c.buyPrice)} -> ${clc.blueBright('$' + c.todaysPrice)} (${clc.blueBright('$' + profit)}/${clc.blue(Math.floor((profit / c.buyPrice) * 100) + '%')})`)
+                }
+                if (c.dailyChange && c.yesterdaysPrice) {
+                    const todayString = this.getDateString(new Date())
+                    console.log(clc.blackBright('Daily: ') + `${clc.cyanBright(todayString)} ${clc.blueBright('$' + _.round(c.dailyChange, 2))}/${clc.blue(Math.floor((c.dailyChange / c.yesterdaysPrice) * 100) + '%')} (${clc.blueBright('$' + c.yesterdaysPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+                }
+                if (c.weeklyChange && c.lastWeekPrice) {
+                    console.log(clc.blackBright('Weekly: ') + `${clc.cyanBright(c.lastWeekDate)} ${clc.blueBright('$' + c.weeklyChange)}/${clc.blue(Math.floor((c.weeklyChange / c.lastWeekPrice) * 100) + '%')} (${clc.blueBright('$' + c.lastWeekPrice)} -> ${clc.blueBright('$' + c.todaysPrice)})`)
+                }
+            })
+        }
         return _.map(changes, (c) => ({
             ...c,
             profit: c.todaysPrice && c.buyPrice ? _.round(c.todaysPrice - c.buyPrice, 2) : 0,
@@ -284,6 +302,61 @@ export default class Util {
             weeklyPercentage: c.weeklyChange && c.lastWeekPrice ? _.round((c.weeklyChange / c.lastWeekPrice) * 100, 0) : 0,
             monthlyPercentage: c.monthlyChange && c.lastMonthPrice ? _.round((c.monthlyChange / c.lastMonthPrice) * 100, 0) : 0,
         }))
+    }
+
+    public async getTotals(setData: SetData[], maxMonths: number, cardType: Type, verbose: boolean = false): Promise<SetTotal[]> {
+        const maxWatchTime = subMonths(new Date(), maxMonths).getTime()
+        const watchSets = _.map(_.filter(setData, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
+        const totals: SetTotal[] = [ ]
+        for (let i = 0; i < watchSets.length;i++) {
+            const currentSet = watchSets[i]
+            let date = _.find(setData, (s) => s.name === currentSet)?.date
+            if (!date) date = ''
+            const ultraRareCards = _.map(await searchQuery(Rarity.UltraRare, currentSet, this.accessToken), (id) => ({ id, set: currentSet }))
+            const secretRareCards = _.map(await searchQuery(Rarity.SecretRare, currentSet, this.accessToken), (id) => ({ id, set: currentSet }))
+            const allCards = ultraRareCards
+            _.each(secretRareCards, (id) => allCards.push(id))
+            await this.saveHistoricalData(allCards, cardType)
+            const ultraRareIds = _.map(ultraRareCards, 'id')
+            const secretRareIds = _.map(secretRareCards, 'id')
+            const { total: ultraRareIndex, average: ultraRareAverage } = await this.getIndex(Rarity.UltraRare, currentSet, ultraRareIds)
+            const { total: secretRareIndex, average: secretRareAverage } = await this.getIndex(Rarity.SecretRare, currentSet, secretRareIds)
+            const totalIndex =  ultraRareIndex + secretRareIndex
+
+            totals.push({
+                set: currentSet,
+                date,
+                ultraRares: {
+                    count: ultraRareCards.length,
+                    totalPrice: ultraRareIndex,
+                    averagePrice: ultraRareAverage
+                },
+                secretRares: {
+                    count: secretRareCards.length,
+                    totalPrice: secretRareIndex,
+                    averagePrice: secretRareAverage
+                },
+                allCards: {
+                    count: ultraRareCards.length + secretRareCards.length,
+                    totalPrice: totalIndex,
+                    averagePrice: _.round(totalIndex / (ultraRareCards.length + secretRareCards.length), 2)
+                },
+                averageMonthlyIncrease: date ? totalIndex / Util.getMonthsFromToday(date) : 0,
+                monthChange: 0,
+                weekChange: 0,
+                dayChange: 0
+            })
+            if (verbose) {
+                console.log(`\n\n\nGetting ${currentSet} indexes released ${date}`)
+                console.log(`\n${currentSet} Ultra Rare Cards: ${ultraRareCards.length} cards`)
+                console.log(`${currentSet} Secret Rare Cards: ${secretRareCards.length} cards`)
+                console.log(`\n\n${currentSet} Ultra Rares: `)
+                Util.displayChanges(ultraRareIds, [], 10)
+                console.log(`\n\n${currentSet} Secret Rares: `)
+                Util.displayChanges(secretRareIds, [], 10)
+            }
+        }
+        return _.reverse(_.orderBy(totals, (t) => t.allCards.averagePrice))
     }
 
     public async getIndex(rarity: Rarity, set: string, cardIds: number[] = []): Promise<{ total: number, average: number }> {

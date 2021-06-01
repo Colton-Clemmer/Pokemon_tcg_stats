@@ -36,3 +36,26 @@ export type MarketInfo = {
     monthsFromToday: number
     increasePerMonth: number
 }
+
+export type SetData = {
+    name: string
+    date: string
+}
+
+type SetStat = {
+    totalPrice: number
+    count: number
+    averagePrice: number
+}
+
+export type SetTotal = {
+    set: string
+    date: string
+    ultraRares: SetStat
+    secretRares: SetStat
+    allCards: SetStat
+    averageMonthlyIncrease: number
+    monthChange: number
+    weekChange: number
+    dayChange: number
+}
