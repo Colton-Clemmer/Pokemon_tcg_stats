@@ -1,10 +1,9 @@
 import jsonfile from 'jsonfile'
 import _ from 'lodash'
-import clc from 'cli-color'
+import UrlSafeString from 'url-safe-string'
 import util from './util'
-import { getPriceInfo, searchQuery } from './api'
-import { Rarity, Type, SetData } from './enums'
-import { subMonths } from 'date-fns'
+import { getPriceInfo } from './api'
+import { Rarity, Type } from './enums'
 import express from 'express'
 import fs from 'fs'
 import ejs from 'ejs'
@@ -108,6 +107,21 @@ app.get('/sets', async (req, res) => {
             { name: 'Secret Rare Total', id: 'secret-rare-total' },
             { name: 'Secret Rare Average', id: 'secret-rare-average' }
         ],
+    }))
+})
+
+app.get('/sets/:set', async (req, res) => {
+    const topSecretCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
+    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
+    const todayString = util.getDateString(new Date())
+    const tagGenerator = new UrlSafeString()
+    res.send(homePage({
+        title: _.find(setData, (s) => tagGenerator.generate(s.name) === req.params.set )?.name,
+        numCards: cards.length,
+        todayString,
+        sorting: req.query.sort || 'monthly',
+        minprice: req.query.minprice || '0',
+        cards
     }))
 })
 

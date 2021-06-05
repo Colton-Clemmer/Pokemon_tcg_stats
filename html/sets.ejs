@@ -19,6 +19,7 @@
                     <div class="btn-group">
                         <% sortingOptions.forEach(function (option) { %>
                         <a class="btn btn-primary <%= sorting === option.id ? 'active' : '' %>" href="?sort=<%= option.id %>"><%= option.name %></a>
+                        <span data-test=""></span>
                         <% }) %>
                     </div>
                 </div>
@@ -30,7 +31,8 @@
                     <div class="card" style="margin-bottom: 15px;">
                         <div class="card-header">
                             <h4>
-                                <%= set.set %>
+                                <a href="sets/<%= set.setLink %>"><%= set.set %></a>
+                                <span data-test=""></span>
                             </h4>
                             <code>
                                 Released <%= set.date %>

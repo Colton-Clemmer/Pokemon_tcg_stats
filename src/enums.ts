@@ -72,6 +72,7 @@ export type Change = {
 
 export type SetTotal = {
     set: string
+    setLink: string
     date: string
     ultraRares: SetStat
     secretRares: SetStat

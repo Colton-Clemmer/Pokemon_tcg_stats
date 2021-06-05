@@ -1,6 +1,7 @@
 import _ from 'lodash'
 import clc from 'cli-color'
 import fs from 'fs'
+import UrlSafeString from 'url-safe-string'
 import { subDays, startOfDay as startOfDayFn, subMonths } from 'date-fns'
 import jsonfile from 'jsonfile'
 import { getPriceInfo, getProductInfo, searchQuery } from './api'
@@ -293,6 +294,7 @@ export default class Util {
         const maxWatchTime = subMonths(new Date(), maxMonths).getTime()
         const watchSets = _.map(_.filter(setData, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
         const totals: SetTotal[] = [ ]
+        const tagGenerator = new UrlSafeString()
         for (let i = 0; i < watchSets.length;i++) {
             const currentSet = watchSets[i]
             let date = _.find(setData, (s) => s.name === currentSet)?.date
@@ -311,6 +313,7 @@ export default class Util {
 
             totals.push({
                 set: currentSet,
+                setLink: tagGenerator.generate(currentSet),
                 date,
                 ultraRares: {
                     count: ultraRareCards.length,
