@@ -48,6 +48,28 @@ type SetStat = {
     averagePrice: number
 }
 
+export type Change = {
+    id: number
+    name: string
+    set: string
+    setDate?: string
+    buyPrice?: number // Price invested in
+    todaysPrice?: number // Current value
+    profit?: number
+    profitPercentage?: number
+    yesterdaysPrice?: number
+    lastWeekPrice?: number
+    lastWeekDate?: string
+    dailyChange?: number
+    dailyPercentage?: number
+    weeklyChange?: number
+    weeklyPercentage?: number
+    lastMonthPrice?: number
+    monthlyChange?: number
+    monthlyPercentage?: number
+    lastMonthDate?: string
+}
+
 export type SetTotal = {
     set: string
     date: string

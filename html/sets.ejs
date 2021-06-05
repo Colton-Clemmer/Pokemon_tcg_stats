@@ -7,22 +7,46 @@
     <body>
         <%- include('nav') -%>
         <div class="container">
+            <div class="row" style="margin-top: 15px">
+                <div class="col-sm-12">
+                    <h2>Pokemon TCG | Card Sets</h2>
+                </div>
+            </div>
+
+            <div class="row" style="margin-bottom: 15px">
+                <div class="col-sm-12">
+                    <b>Sorting:</b> 
+                    <div class="btn-group">
+                        <% sortingOptions.forEach(function (option) { %>
+                        <a class="btn btn-primary <%= sorting === option.id ? 'active' : '' %>" href="?sort=<%= option.id %>"><%= option.name %></a>
+                        <% }) %>
+                    </div>
+                </div>
+            </div>
+
             <div class="row">
                 <div class="col-sm-12">
                     <% sets.forEach(function(set) { %>
                     <div class="card" style="margin-bottom: 15px;">
                         <div class="card-header">
-                            <%= set.set %> (released <%= set.date %>)
+                            <h4>
+                                <%= set.set %>
+                            </h4>
+                            <code>
+                                Released <%= set.date %>
+                            </code>
                         </div>
                         <div class="card-body">
-                            <b>Monthly total change: </b><%= set.monthlyTotalChange %><br>
-                            <b>Monthly average change</b> <%= set.monthlyAverageChange %><br>
-                            <b>Total Index:</b> <%= set.total %><br>
-                            <b>All average:</b> <%= set.allAverage %><br>
-                            <b>Ultra Rare Index:</b> <%= set.ultraRareIndex %><br>
-                            <b>Ultra Rare Average:</b> <%= set.ultraRareAverage %><br>
-                            <b>Secret Rare Index:</b> <%= set.secretRareIndex %><br>
-                            <b>Secret Rare Average:</b> <%= set.secretRareAverage %>
+                            <b>Total Cost:</b> $<%= set.allCards.totalPrice %><br>
+                            <b>Monthly total change:</b> $<%= set.monthChange %><br>
+                            <b>Weekly total change:</b> $<%= set.weekChange %><br>
+                            <b>Daily total change:</b> $<%= set.dayChange %><br>
+                            <b>Monthly average change:</b> $<%= set.averageMonthlyIncrease %><br>
+                            <b>All average:</b> $<%= set.allCards.averagePrice %><br>
+                            <b>Ultra Rare Index:</b> $<%= set.ultraRares.totalPrice %><br>
+                            <b>Ultra Rare Average:</b> $<%= set.ultraRares.averagePrice %><br>
+                            <b>Secret Rare Index:</b> $<%= set.secretRares.totalPrice %><br>
+                            <b>Secret Rare Average:</b> $<%= set.secretRares.averagePrice %>
                         </div>
                     </div>
                     <% }) %>

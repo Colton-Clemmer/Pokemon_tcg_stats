@@ -12,7 +12,8 @@ import {
     PriceInfo,
     MarketInfo,
     SetData,
-    SetTotal
+    SetTotal,
+    Change
 } from './enums'
 
 const today = new Date()
@@ -34,28 +35,6 @@ type HistoryItem = {
     date: string
     marketPrice: number
     cardType: string
-}
-
-type Change = {
-    id: number
-    name: string
-    set: string
-    setDate?: string
-    buyPrice?: number // Price invested in
-    todaysPrice?: number // Current value
-    profit?: number
-    profitPercentage?: number
-    yesterdaysPrice?: number
-    lastWeekPrice?: number
-    lastWeekDate?: string
-    dailyChange?: number
-    dailyPercentage?: number
-    weeklyChange?: number
-    weeklyPercentage?: number
-    lastMonthPrice?: number
-    monthlyChange?: number
-    monthlyPercentage?: number
-    lastMonthDate?: string
 }
 
 export default class Util {
@@ -304,7 +283,13 @@ export default class Util {
         }))
     }
 
-    public async getTotals(setData: SetData[], maxMonths: number, cardType: Type, verbose: boolean = false): Promise<SetTotal[]> {
+    public async getTotals(
+        setData: SetData[],
+        maxMonths: number,
+        cardType: Type,
+        verbose: boolean = false,
+        sort: string = 'monthly-change'
+    ): Promise<SetTotal[]> {
         const maxWatchTime = subMonths(new Date(), maxMonths).getTime()
         const watchSets = _.map(_.filter(setData, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
         const totals: SetTotal[] = [ ]
@@ -322,6 +307,7 @@ export default class Util {
             const { total: ultraRareIndex, average: ultraRareAverage } = await this.getIndex(Rarity.UltraRare, currentSet, ultraRareIds)
             const { total: secretRareIndex, average: secretRareAverage } = await this.getIndex(Rarity.SecretRare, currentSet, secretRareIds)
             const totalIndex =  ultraRareIndex + secretRareIndex
+            const cardPriceHistory = Util.displayChanges(_.map(allCards, 'id'))
 
             totals.push({
                 set: currentSet,
@@ -338,13 +324,13 @@ export default class Util {
                 },
                 allCards: {
                     count: ultraRareCards.length + secretRareCards.length,
-                    totalPrice: totalIndex,
+                    totalPrice: _.round(totalIndex, 2),
                     averagePrice: _.round(totalIndex / (ultraRareCards.length + secretRareCards.length), 2)
                 },
-                averageMonthlyIncrease: date ? totalIndex / Util.getMonthsFromToday(date) : 0,
-                monthChange: 0,
-                weekChange: 0,
-                dayChange: 0
+                averageMonthlyIncrease: date ? _.round(totalIndex / Util.getMonthsFromToday(date), 2) : 0,
+                monthChange: _.round(_.sumBy(cardPriceHistory, (h) => h.monthlyChange ? h.monthlyChange : 0), 2),
+                weekChange: _.round(_.sumBy(cardPriceHistory, (h) => h.weeklyChange ? h.weeklyChange : 0), 2),
+                dayChange: _.round(_.sumBy(cardPriceHistory, (h) => h.dailyChange ? h.dailyChange : 0), 2)
             })
             if (verbose) {
                 console.log(`\n\n\nGetting ${currentSet} indexes released ${date}`)
@@ -356,10 +342,23 @@ export default class Util {
                 Util.displayChanges(secretRareIds, [], 10)
             }
         }
-        return _.reverse(_.orderBy(totals, (t) => t.allCards.averagePrice))
+        return _.reverse(_.orderBy(totals, (t) => {
+            switch (sort) {
+                case 'total-cost': return t.allCards.totalPrice
+                case 'monthly-change': return t.monthChange
+                case 'weekly-change': return t.weekChange
+                case 'daily-change': return t.dayChange
+                case 'monthly-average-change': return t.averageMonthlyIncrease
+                case 'all-average': return t.allCards.averagePrice
+                case 'ultra-rare-total': return t.ultraRares.totalPrice
+                case 'ultra-rare-average': return t.ultraRares.averagePrice
+                case 'secret-rare-total': return t.secretRares.totalPrice
+                case 'secret-rare-average': return t.secretRares.averagePrice
+            }
+        }))
     }
 
-    public async getIndex(rarity: Rarity, set: string, cardIds: number[] = []): Promise<{ total: number, average: number }> {
+    public async getIndex(rarity: Rarity, set: string, cardIds: number[] = [], verbose: boolean = false): Promise<{ total: number, average: number }> {
         const search = cardIds.length !== 0 ? cardIds : await searchQuery(rarity, set, this.accessToken)
         const history = Util.getHistory()
         const todayObj = startOfDayFn(new Date())
@@ -378,9 +377,11 @@ export default class Util {
             if (todaysPrice) todayTotal += todaysPrice.marketPrice
             if (yesterdaysPrice) yesterdayTotal += yesterdaysPrice.marketPrice
         }
-        console.log(`\nIndex: ${set} (${rarity}) - $${_.round(todayTotal, 2)}`)
         const dailyChange = _.round(todayTotal - yesterdayTotal, 2)
-        console.log(`Daily: $${_.round(yesterdayTotal, 2)} -> $${_.round(todayTotal, 2)} ($${dailyChange}/${Math.floor((dailyChange / yesterdayTotal) * 100)}%)`)
-        return { total: todayTotal, average: _.round(todayTotal / search.length, 2) }
+        if (verbose) {
+            console.log(`\nIndex: ${set} (${rarity}) - $${_.round(todayTotal, 2)}`)
+            console.log(`Daily: $${_.round(yesterdayTotal, 2)} -> $${_.round(todayTotal, 2)} ($${dailyChange}/${Math.floor((dailyChange / yesterdayTotal) * 100)}%)`)
+        }
+        return { total: _.round(todayTotal, 2), average: _.round(todayTotal / search.length, 2) }
     }
 }

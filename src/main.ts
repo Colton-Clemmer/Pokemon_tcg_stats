@@ -13,6 +13,10 @@ import ejs from 'ejs'
     Add sorting for daily, weekly, and monthly change
     filtering for top ultra and secret cards to determine date range and max or min price
     Add sets page with indexes for list
+
+    Watch booster packs and boxes
+    Add chilling reign set
+    Add sorting to sets page
 */
 
 const watchIds = [
@@ -27,6 +31,8 @@ const setData: { name: string, date: string }[] = jsonfile.readFileSync('data/se
 const accessToken = keys.accessToken
 const verbose = false
 const utilObj = new util({ accessToken, sets: setData, verbose })
+const maxMonths = 24
+const paramCardType = Type.Holofoil
 
 const ejsOptions = { views: [ 'html' ] }
 const homePage = ejs.compile(fs.readFileSync('html/index.ejs').toString(), ejsOptions)
@@ -86,45 +92,23 @@ app.get('/top-secret', async (req, res) => {
 })
 
 app.get('/sets', async (req, res) => {
-    const totals = await utilObj.getTotals(setData, maxMonths, paramCardType)
+    const totals = await utilObj.getTotals(setData, maxMonths, paramCardType, false, req.query.sort as string || 'monthly-change')
     res.send(setsPage({
-        sets: totals
+        sets: totals,
+        sorting: req.query.sort || 'monthly-change',
+        sortingOptions: [
+            { name: 'Total Cost', id: 'total-cost' },
+            { name: 'Monthly Change', id: 'monthly-change' },
+            { name: 'Weekly Change', id: 'weekly-change' },
+            { name: 'Daily Change', id: 'daily-change' },
+            { name: 'Monthly Average Change', id: 'monthly-average-change' },
+            { name: 'All Average', id: 'all-average' },
+            { name: 'Ultra Rare Total', id: 'ultra-rare-total' },
+            { name: 'Ultra Rare Average', id: 'ultra-rare-average' },
+            { name: 'Secret Rare Total', id: 'secret-rare-total' },
+            { name: 'Secret Rare Average', id: 'secret-rare-average' }
+        ],
     }))
 })
 
 app.listen(8000)
-
-const maxMonths = 24
-const paramCardType = Type.Holofoil
-
-
-const fn = async () => {
-    const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    console.log(clc.white(`Top Ultra rare Cards: ${topUltraCards.length} cards`))
-    const topSecretcards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    console.log(clc.white(`\nTop Secret rare Cards: ${topSecretcards.length} cards`))
-    let cards = topUltraCards
-    _.each(topSecretcards, (c) => cards.push(c))
-    _.each(watchIds, (card) => cards.push(card))
-    cards = _.uniq(cards)
-    await utilObj.saveHistoricalData(cards, paramCardType)
-
-    console.log(clc.white('\nWatch List: '))
-    util.displayChanges(_.map(watchIds, 'id'), _.map(watchIds, 'price'))
-
-    console.log(clc.white('\nTop Ultra Rare Cards:'))
-    util.displayChanges(_.map(topUltraCards, 'id'), [], 10)
-    console.log(clc.white('\nTop Secret Rare Cards:'))
-    util.displayChanges(_.map(topSecretcards, 'id'), [], 10)
-
-    const totals = await utilObj.getTotals(setData, maxMonths, paramCardType, true)
-    for (let i = 0; i < totals.length;i++) {
-        const total = totals[i]
-        console.log(`\nSet: ${total.set} released ${total.date}`)
-        console.log(`Monthly increase: $${_.round(total.averageMonthlyIncrease, 2)}`)
-        console.log(`Total index: $${_.round(total.allCards.totalPrice, 2)} (${total.allCards.count} cards | $${total.allCards.averagePrice} average)`)
-        console.log(`Ultra Rare index: $${_.round(total.ultraRares.totalPrice, 2)} (${total.ultraRares.count} cards | $${total.ultraRares.averagePrice} average)`)
-        console.log(`Secret Rare index: $${total.secretRares.count} (${total.secretRares.count} cards | $${total.secretRares.averagePrice} average)`)
-    }
-}
-// fn()
