@@ -2,7 +2,7 @@ import jsonfile from 'jsonfile'
 import _ from 'lodash'
 import UrlSafeString from 'url-safe-string'
 import util from './util'
-import { getPriceInfo } from './api'
+import { getPriceInfo, searchQuery } from './api'
 import { Rarity, Type } from './enums'
 import express from 'express'
 import fs from 'fs'
@@ -16,6 +16,12 @@ import ejs from 'ejs'
     Watch booster packs and boxes
     Add chilling reign set
     Add sorting to sets page
+
+    Reduce file writes
+    Fix set page
+    Optimize history file
+    Optimize Update file
+    Watch older sets
 */
 
 const watchIds = [
@@ -64,7 +70,7 @@ app.get('/watch', async (req, res) => {
 
 app.get('/top-ultra', async (req, res) => {
     const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    const cards = util.displayChanges(_.map(topUltraCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
+    const cards = util.displayChanges(_.map(topUltraCards, 'id'), [ ], 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Top Ultra Cards',
@@ -78,7 +84,7 @@ app.get('/top-ultra', async (req, res) => {
 
 app.get('/top-secret', async (req, res) => {
     const topSecretCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
+    const cards = util.displayChanges(_.map(topSecretCards, 'id'), [ ], 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
     const todayString = util.getDateString(new Date())
     res.send(homePage({
         title: 'Top Secret Cards',
@@ -111,12 +117,14 @@ app.get('/sets', async (req, res) => {
 })
 
 app.get('/sets/:set', async (req, res) => {
-    const topSecretCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
-    const cards = util.displayChanges(_.map(topSecretCards, 'id'), _.map(watchIds, 'price'), 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
-    const todayString = util.getDateString(new Date())
     const tagGenerator = new UrlSafeString()
+    const setName = _.find(setData, (s) => tagGenerator.generate(s.name) === req.params.set )?.name
+    if (!setName) return
+    const cardIds = await searchQuery(Rarity.UltraRare, setName, accessToken)
+    const cards = util.displayChanges(cardIds, [ ], 0, parseInt(req.query.minprice as string, 10) || 0, req.query.sort as string || 'monthly')
+    const todayString = util.getDateString(new Date())
     res.send(homePage({
-        title: _.find(setData, (s) => tagGenerator.generate(s.name) === req.params.set )?.name,
+        title: setName,
         numCards: cards.length,
         todayString,
         sorting: req.query.sort || 'monthly',
