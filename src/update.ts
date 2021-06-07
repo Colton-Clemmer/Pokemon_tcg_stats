@@ -3,6 +3,8 @@ import _ from 'lodash'
 import clc from 'cli-color'
 import util from './util'
 import { Rarity, Type } from './enums'
+import { searchQuery, getPriceInfo, getProductInfo } from './api'
+import { subMonths } from 'date-fns'
 
 const watchIds = [
     { id: 222990, price: 1.9, set: 'Champion\'s Path' }, // Venusaur V
@@ -11,7 +13,7 @@ const watchIds = [
     { id: 234267, price : 2.5, set: 'SWSH05: Battle Styles' } // Rapid Strike Urshifu V
 ]
 
-const maxMonths = 24
+const maxMonths = 72
 const paramCardType = Type.Holofoil
 const keys = jsonfile.readFileSync('data/keys.json')
 const setData: { name: string, date: string }[] = jsonfile.readFileSync('data/sets.json').sets
@@ -19,9 +21,21 @@ const accessToken = keys.accessToken
 const verbose = false
 const utilObj = new util({ accessToken, sets: setData, verbose })
 
-
-
 const fn = async () => {
+    const cardIds: number[] = []
+    const maxWatchTime = subMonths(new Date(), maxMonths).getTime()
+    const watchSets = _.map(_.filter(setData, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
+    for  (let i = 0; i < watchSets.length;i++) {
+        const set = watchSets[i]
+        _.each(await searchQuery(Rarity.UltraRare, set, accessToken), (id) => cardIds.push(id))
+        _.each(await searchQuery(Rarity.UltraRare, set, accessToken), (id) => cardIds.push(id))
+    }
+
+    console.log('Getting info for ' + cardIds.length + ' cards')
+    await getProductInfo(cardIds, accessToken)
+    await getPriceInfo(cardIds, paramCardType, accessToken)
+    return
+
     const topUltraCards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.UltraRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))
     console.log(clc.white(`Top Ultra rare Cards: ${topUltraCards.length} cards`))
     const topSecretcards = _.map(await utilObj.getBestCardAppreciation(6, 72, Rarity.SecretRare, paramCardType, 500), (c) => ({ id: c.productId, set: c.set }))

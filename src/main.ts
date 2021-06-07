@@ -17,11 +17,10 @@ import ejs from 'ejs'
     Add chilling reign set
     Add sorting to sets page
 
-    Reduce file writes
-    Fix set page
     Optimize history file
     Optimize Update file
     Watch older sets
+    Add secret/ultra filter for set page
 */
 
 const watchIds = [
@@ -36,7 +35,7 @@ const setData: { name: string, date: string }[] = jsonfile.readFileSync('data/se
 const accessToken = keys.accessToken
 const verbose = false
 const utilObj = new util({ accessToken, sets: setData, verbose })
-const maxMonths = 24
+const maxMonths = 72
 const paramCardType = Type.Holofoil
 
 const ejsOptions = { views: [ 'html' ] }
