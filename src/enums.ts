@@ -82,3 +82,20 @@ export type SetTotal = {
     weekChange: number
     dayChange: number
 }
+
+export type HistoryItem = {
+    date: string
+    marketPrice: number
+    cardType: string
+}
+
+export type HistoryCard = {
+    name: string
+    productId: number
+    set: string
+    history: HistoryItem[]
+}
+
+export type HistorySchema = {
+    [id: string]: HistoryCard
+}

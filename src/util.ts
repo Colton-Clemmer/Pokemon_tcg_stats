@@ -14,7 +14,10 @@ import {
     MarketInfo,
     SetData,
     SetTotal,
-    Change
+    Change,
+    HistorySchema,
+    HistoryCard,
+    HistoryItem
 } from './enums'
 
 const today = new Date()
@@ -23,19 +26,6 @@ type UtilParams = {
     accessToken: string
     sets: any
     verbose: boolean
-}
-
-type HistoryCard = {
-    name: string
-    productId: number
-    set: string
-    history: HistoryItem[]
-}
-
-type HistoryItem = {
-    date: string
-    marketPrice: number
-    cardType: string
 }
 
 export default class Util {
@@ -121,9 +111,12 @@ export default class Util {
 
     public async saveHistoricalData(
         cards: { id: number, set: string }[],
-        cardType: Type
-    ): Promise<void> {
-        const history = Util.getHistory()
+        cardType: Type,
+        history?: any
+    ): Promise<HistorySchema> {
+        const cachedHistory = !!history
+        if (!history) history = Util.getHistory()
+        const oldHistory = history
         const cardIds = _.map(cards, 'id')
         const priceInfo: PriceInfo[] = await getPriceInfo(cardIds, cardType, this.accessToken)
         const productInfo: ProductInfo[] = await getProductInfo(cardIds, this.accessToken)
@@ -151,7 +144,10 @@ export default class Util {
                 cardType
             })
         }
-        jsonfile.writeFileSync('data/history.json', { cards: history })
+        if (!cachedHistory && history !== oldHistory) {
+            jsonfile.writeFileSync('data/history.json', { cards: history })
+        }
+        return history
     }
 
     public static getDateString(date: Date) {
@@ -159,7 +155,7 @@ export default class Util {
         return d.slice(0, d.indexOf('T'))
     }
 
-    public static getHistory() {
+    public static getHistory(): HistorySchema {
         return (fs.existsSync('data/history.json') ? jsonfile.readFileSync('data/history.json') : { cards: {} }).cards
     }
 
@@ -207,7 +203,7 @@ export default class Util {
         const notFound = []
         for (let i = 0; i < cardIds.length; i++) {
             const id = cardIds[i]
-            const historicalData: HistoryCard = history[id.toString()]
+            const historicalData = history[id.toString()]
             if (!historicalData) {
                 notFound.push(id)
                 continue
@@ -295,6 +291,7 @@ export default class Util {
         const watchSets = _.map(_.filter(setData, (s) =>  (new Date(s.date)).getTime() > maxWatchTime), 'name')
         const totals: SetTotal[] = [ ]
         const tagGenerator = new UrlSafeString()
+        let history = Util.getHistory()
         for (let i = 0; i < watchSets.length;i++) {
             const currentSet = watchSets[i]
             let date = _.find(setData, (s) => s.name === currentSet)?.date
@@ -303,7 +300,7 @@ export default class Util {
             const secretRareCards = _.map(await searchQuery(Rarity.SecretRare, currentSet, this.accessToken), (id) => ({ id, set: currentSet }))
             const allCards = ultraRareCards
             _.each(secretRareCards, (id) => allCards.push(id))
-            await this.saveHistoricalData(allCards, cardType)
+            history = await this.saveHistoricalData(allCards, cardType)
             const ultraRareIds = _.map(ultraRareCards, 'id')
             const secretRareIds = _.map(secretRareCards, 'id')
             const { total: ultraRareIndex, average: ultraRareAverage } = await this.getIndex(Rarity.UltraRare, currentSet, ultraRareIds)
@@ -345,6 +342,9 @@ export default class Util {
                 Util.displayChanges(secretRareIds, [], 10)
             }
         }
+
+        jsonfile.writeFileSync('data/history.json', { cards: history })
+
         return _.reverse(_.orderBy(totals, (t) => {
             switch (sort) {
                 case 'total-cost': return t.allCards.totalPrice
